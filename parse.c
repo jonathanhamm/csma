@@ -21,10 +21,15 @@ typedef enum type_e type_e;
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
 typedef struct object_s object_s;
+typedef struct exp_s exp_s;
 typedef struct aggnode_s aggnode_s;
 typedef struct aggregate_s aggregate_s;
 typedef struct scope_s scope_s;
 typedef struct access_list_s access_list_s;
+
+typedef struct params_s params_s;
+typedef struct function_s function_s;
+
 
 enum type_e
 {
@@ -57,9 +62,15 @@ struct object_s
     bool islazy;
 };
 
+struct exp_s
+{
+    char *name;
+    object_s obj;
+};
+
 struct aggnode_s
 {
-    object_s obj;
+    exp_s exp;
     aggnode_s *next;
 };
 
@@ -89,6 +100,25 @@ struct access_list_s
     access_list_s *next;
 };
 
+struct params_s
+{
+    char *name;
+    type_e type;
+};
+
+struct function_s
+{
+    char name[16];
+    bool isLazy;
+    int nargs;
+    struct {
+        bool is_object_func;
+        type_e acts_on;
+    }
+    object;
+    params_s paramlist;
+};
+
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
@@ -100,6 +130,10 @@ static scope_s *global;
 static char *source;
 static int source_fd;
 static struct stat fstats;
+
+static function_s funcs[] = {
+    {"node", false, -1, {false, 1}, {"node", TYPE_STRING}}
+};
 
 
 static char *functions[] = {
@@ -123,12 +157,11 @@ static void parse_index(access_list_s **acc);
 static void parse_idfollow(access_list_s *acc);
 static void parse_optfollow(access_list_s *acc);
 static object_s parse_assignment(void);
-static object_s parse_expression(void);
+static exp_s parse_expression(void);
 static aggregate_s *parse_aggregate(void);
-static void parse_aggregate_list(void);
-static void parse_aggregate_list_(void);
+static aggregate_s *parse_aggregate_list(void);
+static void parse_aggregate_list_(aggregate_s *agg);
 
-static void agg_add(aggregate_s *list, object_s obj);
 static scope_s *make_scope(scope_s *parent, char *ident);
 
 static void print_accesslist(access_list_s *list);
@@ -238,9 +271,13 @@ void lex(const char *name)
                     if(rec)
                         add_token(bptr, TOK_TYPE_ID, rec->att, lineno);
                     else {
-                        ident_add(strclone(bptr), idcounter);
-                        add_token(bptr, TOK_TYPE_ID, idcounter, lineno);
-                        idcounter++;
+                        if(!strcmp(bptr, "inf"))
+                            add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INF, lineno);
+                        else {
+                            ident_add(strclone(bptr), idcounter);
+                            add_token(bptr, TOK_TYPE_ID, idcounter, lineno);
+                            idcounter++;
+                        }
                     }
                     *fptr = c;
                 }
@@ -385,7 +422,7 @@ void parse_index(access_list_s **acc)
         case TOK_TYPE_OPENBRACKET:
             tbackup = tok();
             next_tok();
-            exp = parse_expression();
+            exp = parse_expression().obj;
             if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
                 if(exp.type == TYPE_INT) {
                     (*acc)->next = alloc(sizeof(**acc));
@@ -437,10 +474,13 @@ void parse_index(access_list_s **acc)
 
 void parse_idfollow(access_list_s *acc)
 {
+    object_s obj;
+    aggregate_s *agg;
+    
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
             next_tok();
-            parse_aggregate_list();
+            agg = parse_aggregate_list();
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -449,7 +489,7 @@ void parse_idfollow(access_list_s *acc)
             }
             break;
         case TOK_TYPE_ASSIGNOP:
-            parse_assignment();
+            obj = parse_assignment();
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected ( = or += but got: %s\n", tok()->lineno, tok()->lexeme);
@@ -486,7 +526,7 @@ object_s parse_assignment(void)
     
     if(tok()->type == TOK_TYPE_ASSIGNOP) {
         next_tok();
-        obj = parse_expression();
+        obj = parse_expression().obj;
     }
     else {
         fprintf(stderr, "Syntax Error at line %d: Expected += or = but got %s\n", tok()->lineno, tok()->lexeme);
@@ -494,23 +534,24 @@ object_s parse_assignment(void)
     return obj;
 }
 
-object_s parse_expression(void)
+exp_s parse_expression(void)
 {
-    object_s obj;
+    exp_s exp;
     access_list_s *acc;
     
+    exp.name = NULL;
     switch(tok()->type) {
         case TOK_TYPE_NUM:
-            obj.tok = tok();
+            exp.obj.tok = tok();
             if(tok()->att == TOK_ATT_INT)
-                obj.type = TYPE_INT;
+                exp.obj.type = TYPE_INT;
             else
-                obj.type = TYPE_REAL;
+                exp.obj.type = TYPE_REAL;
             next_tok();
             break;
         case TOK_TYPE_STRING:
-            obj.tok = tok();
-            obj.type = TYPE_STRING;
+            exp.obj.tok = tok();
+            exp.obj.type = TYPE_STRING;
             next_tok();
             break;
         case TOK_TYPE_ID:
@@ -518,15 +559,15 @@ object_s parse_expression(void)
             parse_optfollow(acc);
             break;
         case TOK_TYPE_OPENBRACE:
-            obj.tok = tok();
-            obj.agg = parse_aggregate();
-            obj.type = TYPE_AGGREGATE;
+            exp.obj.tok = tok();
+            exp.obj.agg = parse_aggregate();
+            exp.obj.type = TYPE_AGGREGATE;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
-    return obj;
+    return exp;
 }
 
 aggregate_s *parse_aggregate(void)
@@ -535,7 +576,7 @@ aggregate_s *parse_aggregate(void)
     
     if(tok()->type == TOK_TYPE_OPENBRACE) {
         next_tok();
-        parse_aggregate_list();
+        agg = parse_aggregate_list();
         if(tok()->type == TOK_TYPE_CLOSEBRACE) {
             next_tok();
         }
@@ -546,34 +587,49 @@ aggregate_s *parse_aggregate(void)
     else {
         fprintf(stderr, "Syntax Error at line %d: Expected { but got %s\n", tok()->lineno, tok()->lexeme);
     }
+    return NULL;
 }
 
-void parse_aggregate_list(void)
+aggregate_s *parse_aggregate_list(void)
 {
+    exp_s exp;
+    aggregate_s *agg = NULL;
+    
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
         case TOK_TYPE_STRING:
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
-            parse_expression();
-            parse_aggregate_list_();
+            exp = parse_expression();
+            agg = alloc(sizeof(*agg));
+            agg->head = alloc(sizeof(*agg->head));
+            agg->head->exp = exp;
+            agg->tail = agg->head;
+            agg->tail->next = NULL;
+            agg->size = 1;
+            parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
+            agg = alloc(sizeof(*agg));
+            agg->head = NULL;
+            agg->tail = NULL;
+            agg->size = 0;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
+    return agg;
 }
 
-void parse_aggregate_list_(void)
+void parse_aggregate_list_(aggregate_s *agg)
 {
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
             next_tok();
             parse_expression();
-            parse_aggregate_list_();
+            parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -582,22 +638,6 @@ void parse_aggregate_list_(void)
             fprintf(stderr, "Syntax Error at line %d: Expected , } or ) but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
-}
-
-void agg_add(aggregate_s *list, object_s obj)
-{
-    
-    aggnode_s *n;
-    
-    n = alloc(sizeof(*n));
-    
-    n->obj = obj;
-    n->next = NULL;
-    if(list->head)
-        list->tail->next = n;
-    else
-        list->head = n;
-    list->tail = n;
 }
 
 scope_s *make_scope(scope_s *parent, char *ident)

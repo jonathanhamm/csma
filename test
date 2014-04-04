@@ -1,14 +1,21 @@
 #Node Declarations
 
 a = {
-        node("bob"), 
-        node("derp"), 
-        node("hahah")
+        bob = node("bob"),
+        derp = node("derp"),
+        omg = node("hahah")
     }
 
-a.x.y[4].z[3] = 4
+#############################################
+#   Node Commands
+#############################################
 
-#node commands
+
+#broadcast
 a.send("b", "hello son")
 
-a.die()
+
+
+group = {a.bob, a.omg}
+
+a.bob.send("hello world")

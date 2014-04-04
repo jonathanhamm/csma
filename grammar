@@ -1,6 +1,7 @@
 
 <statement>->
-    <id> <idfollow> <statement> | ε
+    <expression> <idfollow> <statement> | ε
+
 
 <id> ->
     id <index> <idsuffix>
@@ -18,7 +19,7 @@
             <idsuffix>[1].in := <idsuffix>.in
         }
         |
-
+        ε
 
 <index> ->
     [ <expression> ] <index> 
