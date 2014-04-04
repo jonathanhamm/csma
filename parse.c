@@ -348,7 +348,19 @@ void parse_aggregate(void)
 void parse_aggregate_list(void)
 {
     switch(tok()->type) {
-        
+        case TOK_TYPE_OPENBRACE:
+        case TOK_TYPE_STRING:
+        case TOK_TYPE_NUM:
+        case TOK_TYPE_ID:
+            parse_expression();
+            break;
+        case TOK_TYPE_CLOSEBRACE:
+        case TOK_TYPE_CLOSEPAREN:
+            break;
+        default:
+            fprintf(stderr, "Syntax Error: Expected { string number identifier } or ) but got %s\n", tok()->lexeme);
+            next_tok();
+            break;
     }
 }
 
