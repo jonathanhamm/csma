@@ -1,3 +1,4 @@
+/* Parser for Reading Network File */
 #include "parse.h"
 #include <stdio.h>
 #include <string.h>
@@ -70,7 +71,10 @@ struct aggregate_s
 struct scope_s
 {
     sym_table_s table;
+    char *ident;
+    scope_s *parent;
     scope_s **children;
+    object_s object;
     int nchildren;
 };
 
@@ -534,9 +538,19 @@ void agg_add(aggregate_s *list, object_s obj)
 
 scope_s *make_scope(scope_s *parent, char *ident)
 {
+    scope_s *s = alloc(sizeof(*s));
     
+    s->children = NULL;
+    s->nchildren = 0;
+    s->parent = parent;
+    s->ident = ident;
+    if(parent) {
+        parent->nchildren++;
+        parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
+        parent->children[parent->nchildren-1] = s;
+    }
+    return s;
 }
-
 
 bool ident_add(char *key, int att)
 {
