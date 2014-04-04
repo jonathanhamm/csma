@@ -6,6 +6,7 @@
 
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <unistd.h>
 #include <fcntl.h>
 
 #define INIT_BUF_SIZE 256
@@ -81,6 +82,9 @@ static sym_table_s symtable;
 static scope_s *global;
 
 static char *source;
+static int source_fd;
+static struct stat fstats;
+
 
 static char *functions[] = {
     "rand"
@@ -228,6 +232,8 @@ void lex(const char *name)
         }
     }
     add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT, lineno);
+    munmap(source, fstats.st_size);
+    close(source_fd);
     print_tokens();
 }
 
@@ -524,20 +530,19 @@ uint16_t hash_pjw(char *key)
 void readfile(const char *name)
 {
     int fd, status;
-    struct stat stats;
     
     fd = open(name, O_RDWR);
     if(fd < 0) {
         perror("Failed to open file");
         exit(EXIT_FAILURE);
     }
-    
-    status = fstat(fd, &stats);
+    source_fd = fd;
+    status = fstat(fd, &fstats);
     if(status < 0) {
         perror("Failed to obtain file info");
         exit(EXIT_FAILURE);
     }
-    source = mmap(0, stats.st_size, PROT_WRITE, MAP_PRIVATE, fd, 0);
+    source = mmap(0, fstats.st_size, PROT_WRITE, MAP_PRIVATE, fd, 0);
     if(source == MAP_FAILED) {
         perror("Failed to read file");
         exit(EXIT_FAILURE);
