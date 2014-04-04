@@ -1,27 +1,33 @@
 
-<statement> ->
-            <id> <assignment> | <call>
+<statement>->
+    <id> <idfollow>
 
 <id> ->
-            id <idsuffix>
+    id <idsuffix>
+
+<idsuffix> ->
+        . id | ε
+
+<idfollow>->
+    ( <aggregate_list> )
+    |
+    <assignment>
+
+<optfollow>->
+    <idfollow> | ε
+
 
 <assignment> ->
             assignop <expression>
 
-<idsuffix> ->
-            . id | ε
-    
+
 <expression> ->
-            num | string | <id> <optassign> | <aggregate>
-    
-<optassign> ->
-            <assignment> | ε
-    
+            num | string | <id> <optfollow> | <aggregate>
+
 <aggregate> -> 
             { <aggregate_list> }
 
 <aggregate_list> -> 
             <expression> <aggregate_list> | ε
 
-<call> -> 
-            funcid (<aggregate_list>)
+

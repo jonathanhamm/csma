@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 
-
 typedef struct buf_s buf_s;
 typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
@@ -43,8 +42,6 @@ struct token_s
     token_s *next;
     token_s *prev;
 };
-
-
 
 extern void parse(const char *file);
 

@@ -29,11 +29,6 @@ struct sym_table_s
     sym_record_s *table[SYM_TABLE_SIZE];
 };
 
-static char *func_send2[][2] = {
-    {"dest", NULL}
-    
-};
-
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
@@ -42,24 +37,32 @@ static sym_table_s symtable;
 
 static char *source;
 
+static char *functions[] = {
+    
+};
+
 static void readfile(const char *name);
 static void lex(const char *name);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att);
 static void print_tokens(void);
 
-static void parse_statement(void);
-static void parse_id(void);
-static void parse_assgiment(void);
-static void parse_idsuffix(void);
-static void parse_expression(void);
-static void parse_optassign(void);
-static void parse_aggregate(void);
-static void parse_aggregate_list(void);
-static void parse_call(void);
 
-static bool add_ident(char *key, int att);
+static bool ident_add(char *key, int att);
 static sym_record_s *ident_lookup(char *key);
 static uint16_t hash_pjw(char *key);
+
+static void parse_statement(void);
+static void parse_id(void);
+static void parse_idsuffix(void);
+static void parse_idfollow(void);
+static void parse_optfollow(void);
+static void parse_assignment(void);
+static void parse_expression(void);
+static void parse_aggregate(void);
+static void parse_aggregate_list(void);
+
+
+static char *strclone(char *str);
 
 void parse(const char *file)
 {
@@ -68,6 +71,8 @@ void parse(const char *file)
 
 void lex(const char *name)
 {
+    int idcounter = 1;
+    sym_record_s *rec;
     char *bptr, *fptr, c;
     
     readfile(name);
@@ -136,7 +141,11 @@ void lex(const char *name)
                     while(isalnum(*++fptr));
                     c = *fptr;
                     *fptr = '\0';
-                    add_token(bptr, TOK_TYPE_ID, TOK_ATT_DEFAULT);
+                    rec = ident_lookup(bptr);
+                    if(rec)
+                        add_token(bptr, TOK_TYPE_ID, rec->att);
+                    else
+                        ident_add(strclone(bptr), idcounter++);
                     *fptr = c;
                 }
                 else if(isdigit(*fptr)) {
@@ -168,7 +177,7 @@ void add_token(char *lexeme, tok_types_e type, tok_att_s att)
     
     t->type = type;
     t->att = att;
-    t->lexeme = alloc(strlen(lexeme));
+    t->lexeme = strclone(lexeme);
     strcpy(t->lexeme, lexeme);
     t->next = NULL;
     
@@ -201,22 +210,27 @@ void parse_id(void)
     
 }
 
-void parse_assgiment(void)
-{
-    
-}
-
 void parse_idsuffix(void)
 {
     
 }
 
-void parse_expression(void)
+void parse_idfollow(void)
 {
     
 }
 
-void parse_optassign(void)
+void parse_optfollow(void)
+{
+    
+}
+
+void parse_assignment(void)
+{
+    
+}
+
+void parse_expression(void)
 {
     
 }
@@ -231,12 +245,9 @@ void parse_aggregate_list(void)
     
 }
 
-void parse_call(void)
-{
-    
-}
 
-bool add_ident(char *key, int att)
+
+bool ident_add(char *key, int att)
 {
     sym_record_s *rec = symtable.table[hash_pjw(key)];
     
@@ -371,5 +382,13 @@ void *ralloc(void *ptr, size_t size)
         exit(EXIT_FAILURE);
     }
     return ptr;
+}
+
+char *strclone(char *str)
+{
+    char *clone = alloc(strlen(str)+1);
+    
+    strcpy(clone, str);
+    return clone;
 }
 
