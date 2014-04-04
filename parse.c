@@ -294,22 +294,62 @@ void parse_optfollow(void)
 
 void parse_assignment(void)
 {
-    
+    if(tok()->type == TOK_TYPE_ASSIGNOP) {
+        next_tok();
+        parse_expression();
+    }
+    else {
+        fprintf(stderr, "Syntax Error: Expected += or = but got %s\n", tok()->lexeme);
+        next_tok();
+    }
 }
 
 void parse_expression(void)
 {
-    
+    switch(tok()->type) {
+        case TOK_TYPE_NUM:
+            next_tok();
+            break;
+        case TOK_TYPE_STRING:
+            next_tok();
+            break;
+        case TOK_TYPE_ID:
+            parse_id();
+            break;
+        case TOK_TYPE_OPENBRACE:
+            parse_aggregate();
+            break;
+        default:
+            fprintf(stderr, "Syntax Error: Expected number string identifer or { but got %s\n", tok()->lexeme);
+            next_tok();
+            break;
+    }
 }
 
 void parse_aggregate(void)
 {
-    
+    if(tok()->type == TOK_TYPE_OPENBRACE) {
+        next_tok();
+        parse_aggregate_list();
+        if(tok()->type == TOK_TYPE_CLOSEBRACE) {
+            next_tok();
+        }
+        else {
+            fprintf(stderr, "Syntax Error: Expected } but got %s\n", tok()->lexeme);
+            next_tok();
+        }
+    }
+    else {
+        fprintf(stderr, "Syntax Error: Expected { but got %s\n", tok()->lexeme);
+        next_tok();
+    }
 }
 
 void parse_aggregate_list(void)
 {
-    
+    switch(tok()->type) {
+        
+    }
 }
 
 bool ident_add(char *key, int att)
