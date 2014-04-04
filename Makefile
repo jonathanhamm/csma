@@ -1,2 +1,2 @@
-all:
-	gcc -ggdb -fno-strict-aliasing main.c -o csma
+-all:
+	gcc -ggdb -lm -pthread -fno-strict-aliasing network.c parse.c -o csma
