@@ -18,7 +18,8 @@ enum tok_types_e {
     TOK_TYPE_CLOSEPAREN = 6,
     TOK_TYPE_STRING = 7,
     TOK_TYPE_ASSIGNOP = 8,
-    TOK_TYPE_NUM = 9
+    TOK_TYPE_NUM = 9,
+    TOK_TYPE_PLUSEQ = 10
 };
 
 enum tok_att_s {

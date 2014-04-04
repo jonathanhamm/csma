@@ -84,6 +84,15 @@ void lex(const char *name)
                 add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_DEFAULT);
                 fptr++;
                 break;
+            case '+':
+                if(*++fptr == '=') {
+                    add_token("+=", TOK_TYPE_PLUSEQ, TOK_ATT_DEFAULT);
+                    fptr++;
+                }
+                else {
+                    fprintf(stderr, "Stray '+'");
+                }
+                break;
             default:
                 bptr = fptr;
                 if(isalpha(*fptr)) {
