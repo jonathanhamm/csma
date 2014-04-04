@@ -1,0 +1,21 @@
+
+nodes += {a, b, c}
+
+a.bob(1, rand(1), 3)
+
+a.send(b, {1, 2, 3}, rand(10), repeat=true)
+
+b.send(a, {1, 2, 3, {5,32 ,23 ,32}}, rand(33), repeat=true)
+
+send(a, b, derp, rand(10), repeat=true)
+
+a += b.df.adsf
+
+a.b.c.c = {324, 23, 3234.3, aa.f}
+
+a.send(b, {"YOU SUCK", "hahaha", {"hahaha"}})
+
+a.send(b, "hello world")
+
+bob = "hellO"
+
