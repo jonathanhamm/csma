@@ -53,13 +53,18 @@
             | 
             string
             {
-                <expression>.type = string
-                <expression>.val = string
+                <expression>.type = string.type
+                <expression>.val = string.val
             }
             | 
             <id> <optfollow>
             {
-                if <optfollow>
+                if <optfollow>.type <> null then
+                    <expression>.type := <optfollow>.type
+                    
+                else
+                    <expression>.type := <id>.type
+                endif
             }
             | 
             <aggregate>

@@ -9,13 +9,27 @@
 #include <fcntl.h>
 
 #define INIT_BUF_SIZE 256
-#define SYM_TABLE_SIZE 97
+#define SYM_TABLE_SIZE 53
 
 #define next_tok() (tokcurr = tokcurr->next)
 #define tok() (tokcurr)
 
+typedef enum type_e type_e;
+
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
+typedef struct object_s object_s;
+typedef struct aggnode_s aggnode_s;
+typedef struct aggregate_s aggregate_s;
+typedef struct scope_s scope_s;
+
+enum type_e
+{
+    TYPE_INT,
+    TYPE_REAL,
+    TYPE_STRING,
+    TYPE_AGGREGATE
+};
 
 struct sym_record_s
 {
@@ -29,16 +43,47 @@ struct sym_table_s
     sym_record_s *table[SYM_TABLE_SIZE];
 };
 
+struct object_s
+{
+    union {
+        token_s *tok;
+        aggregate_s *agg;
+    };
+    type_e type;
+};
+
+struct aggnode_s
+{
+    object_s obj;
+    aggnode_s *next;
+};
+
+struct aggregate_s
+{
+    int size;
+    aggnode_s *head;
+    aggnode_s *tail;
+};
+
+struct scope_s
+{
+    sym_table_s table;
+    scope_s **children;
+    int nchildren;
+};
+
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
 
 static sym_table_s symtable;
 
+static scope_s *global;
+
 static char *source;
 
 static char *functions[] = {
-    
+    "rand"
 };
 
 static void readfile(const char *name);
@@ -57,10 +102,13 @@ static void parse_idsuffix(void);
 static void parse_idfollow(void);
 static void parse_optfollow(void);
 static void parse_assignment(void);
-static void parse_expression(void);
-static void parse_aggregate(void);
+static object_s parse_expression(void);
+static aggregate_s *parse_aggregate(void);
 static void parse_aggregate_list(void);
 static void parse_aggregate_list_(void);
+
+static void agg_add(aggregate_s *list, token_s *tok);
+static scope_s *make_scope(scope_s *parent, char *ident);
 
 static char *strclone(char *str);
 
@@ -68,6 +116,7 @@ void parse(const char *file)
 {
     lex(file);
     tokcurr = head;
+    global = make_scope(NULL, "root");
     parse_statement();
 }
 
@@ -321,13 +370,22 @@ void parse_assignment(void)
     }
 }
 
-void parse_expression(void)
+object_s parse_expression(void)
 {
+    object_s obj;
+    
     switch(tok()->type) {
         case TOK_TYPE_NUM:
+            obj.tok = tok();
+            if(tok()->att == TOK_ATT_INT)
+                obj.type = TYPE_INT;
+            else
+                obj.type = TYPE_REAL;
             next_tok();
             break;
         case TOK_TYPE_STRING:
+            obj.tok = tok();
+            obj.type = TYPE_STRING;
             next_tok();
             break;
         case TOK_TYPE_ID:
@@ -335,16 +393,21 @@ void parse_expression(void)
             parse_optfollow();
             break;
         case TOK_TYPE_OPENBRACE:
-            parse_aggregate();
+            obj.tok = tok();
+            obj.agg = parse_aggregate();
+            obj.type = TYPE_AGGREGATE;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
+    return obj;
 }
 
-void parse_aggregate(void)
+aggregate_s *parse_aggregate(void)
 {
+    aggregate_s *agg;
+    
     if(tok()->type == TOK_TYPE_OPENBRACE) {
         next_tok();
         parse_aggregate_list();
@@ -395,6 +458,17 @@ void parse_aggregate_list_(void)
             break;
     }
 }
+
+void agg_add(aggregate_s *list, token_s *tok)
+{
+    
+}
+
+scope_s *make_scope(scope_s *parent, char *ident);
+{
+    
+}
+
 
 bool ident_add(char *key, int att)
 {
