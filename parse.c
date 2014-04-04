@@ -24,6 +24,7 @@ typedef struct object_s object_s;
 typedef struct aggnode_s aggnode_s;
 typedef struct aggregate_s aggregate_s;
 typedef struct scope_s scope_s;
+typedef struct access_list_s access_list_s;
 
 enum type_e
 {
@@ -78,6 +79,15 @@ struct scope_s
     int nchildren;
 };
 
+struct access_list_s
+{
+    bool isindex;
+    int index;
+    char *name;
+    bool islazy;
+    access_list_s *next;
+};
+
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
@@ -106,9 +116,9 @@ static sym_record_s *ident_lookup(char *key);
 static uint16_t hash_pjw(char *key);
 
 static void parse_statement(void);
-static void parse_id(void);
-static void parse_idsuffix(void);
-static void parse_index(void);
+static access_list_s *parse_id(void);
+static void parse_idsuffix(access_list_s **acc);
+static void parse_index(access_list_s **acc);
 static void parse_idfollow(void);
 static void parse_optfollow(void);
 static void parse_assignment(void);
@@ -139,6 +149,10 @@ void lex(const char *name)
     readfile(name);
     bptr = fptr = source;
     
+    if(*fptr == '#') {
+        while(*fptr && *fptr != '\n')
+            fptr++;
+    }
     while(*fptr) {
         switch(*fptr) {
             case '\n':
@@ -301,26 +315,38 @@ void parse_statement(void)
     }
 }
 
-void parse_id(void)
+access_list_s *parse_id(void)
 {
+    access_list_s *list = NULL, *acc;
+    
     if(tok()->type == TOK_TYPE_ID) {
+        list = alloc(sizeof(*list));
+        list->name = tok()->lexeme;
+        list->isindex = false;
+        list->next = NULL;
+        acc = list;
         next_tok();
-        parse_index();
-        parse_idsuffix();
+        parse_index(&acc);
+        parse_idsuffix(&acc);
     }
     else {
         fprintf(stderr, "Syntax Error at line %d: Expected identifier but got %s\n", tok()->lineno, tokcurr->lexeme);
     }
+    return list;
 }
 
-void parse_idsuffix(void)
+void parse_idsuffix(access_list_s **acc)
 {
     switch(tok()->type) {
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
+                (*acc)->next = alloc(sizeof(**acc));
+                (*acc)->name = tok()->lexeme;
+                (*acc)->isindex = false;
+                (*acc)->next = NULL;
                 next_tok();
-                parse_index();
-                parse_idsuffix();
+                parse_index(acc);
+                parse_idsuffix(acc);
             }
             else {
                 fprintf(stderr, "Syntax Error at line %d: Expected identifier, but got %s\n", tok()->lineno, tok()->lexeme);
@@ -344,15 +370,28 @@ void parse_idsuffix(void)
     }
 }
 
-void parse_index(void)
+void parse_index(access_list_s **acc)
 {
+    token_s *tbackup;
+    object_s exp;
+    
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACKET:
+            tbackup = tok();
             next_tok();
-            parse_expression();
+            exp = parse_expression();
             if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
+                if(exp.type == TYPE_INT) {
+                    (*acc)->next = alloc(sizeof(**acc));
+                    (*acc)->index = atoi(exp.tok->lexeme);
+                    (*acc)->isindex = true;
+                    (*acc)->next = NULL;
+                }
+                else {
+                    fprintf(stderr, "Invalid Type Used to index aggregate object near line %d. Expected integer.\n", tbackup->lineno);
+                }
                 next_tok();
-                parse_index();
+                parse_index(acc);
             }
             else {
                 printf("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
