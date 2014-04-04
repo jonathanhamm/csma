@@ -43,7 +43,7 @@ static char *functions[] = {
 
 static void readfile(const char *name);
 static void lex(const char *name);
-static void add_token(char *lexeme, tok_types_e type, tok_att_s att);
+static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
 
 
@@ -60,18 +60,20 @@ static void parse_assignment(void);
 static void parse_expression(void);
 static void parse_aggregate(void);
 static void parse_aggregate_list(void);
-
+static void parse_aggregate_list_(void);
 
 static char *strclone(char *str);
 
 void parse(const char *file)
 {
     lex(file);
+    tokcurr = head;
+    parse_statement();
 }
 
 void lex(const char *name)
 {
-    int idcounter = 1;
+    int idcounter = 1, lineno = 1;;
     sym_record_s *rec;
     char *bptr, *fptr, c;
     
@@ -80,34 +82,36 @@ void lex(const char *name)
     
     while(*fptr) {
         switch(*fptr) {
-            case ' ':
             case '\n':
+                lineno++;
+            case ' ':
             case '\t':
             case '\v':
                 fptr++;
                 break;
             case '.':
-                add_token(".", TOK_TYPE_DOT, TOK_ATT_DEFAULT);
+                add_token(".", TOK_TYPE_DOT, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case ',':
-                add_token(",", TOK_TYPE_COMMA, TOK_ATT_DEFAULT);
+                add_token(",", TOK_TYPE_COMMA, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '{':
-                add_token("{", TOK_TYPE_OPENBRACE, TOK_ATT_DEFAULT);
+                add_token("{", TOK_TYPE_OPENBRACE, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '}':
-                add_token("}", TOK_TYPE_CLOSEBRACE, TOK_ATT_DEFAULT);
+                add_token("}", TOK_TYPE_CLOSEBRACE, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case ')':
-                add_token(")", TOK_TYPE_OPENPAREN, TOK_ATT_DEFAULT);
+                
+                add_token(")", TOK_TYPE_CLOSEPAREN, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '(':
-                add_token("(", TOK_TYPE_CLOSEPAREN, TOK_ATT_DEFAULT);
+                add_token("(", TOK_TYPE_OPENPAREN, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '"':
@@ -118,17 +122,17 @@ void lex(const char *name)
                 }
                 c = *++fptr;
                 *fptr = '\0';
-                add_token(bptr, TOK_TYPE_STRING, TOK_ATT_DEFAULT);
+                add_token(bptr, TOK_TYPE_STRING, TOK_ATT_DEFAULT, lineno);
                 bptr = fptr;
                 *fptr = c;
                 break;
             case '=':
-                add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_EQ);
+                add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_EQ, lineno);
                 fptr++;
                 break;
             case '+':
                 if(*++fptr == '=') {
-                    add_token("+=", TOK_TYPE_ASSIGNOP, TOK_ATT_PLUSEQ);
+                    add_token("+=", TOK_TYPE_ASSIGNOP, TOK_ATT_PLUSEQ, lineno);
                     fptr++;
                 }
                 else {
@@ -143,9 +147,12 @@ void lex(const char *name)
                     *fptr = '\0';
                     rec = ident_lookup(bptr);
                     if(rec)
-                        add_token(bptr, TOK_TYPE_ID, rec->att);
-                    else
-                        ident_add(strclone(bptr), idcounter++);
+                        add_token(bptr, TOK_TYPE_ID, rec->att, lineno);
+                    else {
+                        ident_add(strclone(bptr), idcounter);
+                        add_token(bptr, TOK_TYPE_ID, idcounter, lineno);
+                        idcounter++;
+                    }
                     *fptr = c;
                 }
                 else if(isdigit(*fptr)) {
@@ -154,29 +161,30 @@ void lex(const char *name)
                         while(isdigit(*++fptr));
                         c = *fptr;
                         *fptr = '\0';
-                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_REAL);
+                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_REAL, lineno);
                         *fptr = c;
                     }
                     else {
                         c = *fptr;
                         *fptr = '\0';
-                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INT);
+                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INT, lineno);
                         *fptr = c;
                     }
                 }
                 break;
         }
     }
-    add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT);
+    add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT, lineno);
     print_tokens();
 }
 
-void add_token(char *lexeme, tok_types_e type, tok_att_s att)
+void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
 {
     token_s *t = alloc(sizeof(*t));
     
     t->type = type;
     t->att = att;
+    t->lineno = lineno;
     t->lexeme = strclone(lexeme);
     strcpy(t->lexeme, lexeme);
     t->next = NULL;
@@ -202,8 +210,17 @@ void print_tokens(void)
 
 void parse_statement(void)
 {
-    parse_id();
-    parse_idfollow();
+    if(tok()->type == TOK_TYPE_ID) {
+        parse_id();
+        parse_idfollow();
+        parse_statement();
+    }
+    else if(tok()->type == TOK_TYPE_EOF) {
+        
+    }
+    else {
+        fprintf(stderr, "Syntax Error at line %d: Expected EOF but got %s\n", tok()->lineno, tok()->lexeme);
+    }
 }
 
 void parse_id(void)
@@ -213,8 +230,7 @@ void parse_id(void)
         parse_idsuffix();
     }
     else {
-        fprintf(stderr, "Syntax Error: Expected identifier but got %s\n", tokcurr->lexeme);
-        next_tok();
+        fprintf(stderr, "Syntax Error at line %d: Expected identifier but got %s\n", tok()->lineno, tokcurr->lexeme);
     }
 }
 
@@ -226,8 +242,7 @@ void parse_idsuffix(void)
                 next_tok();
             }
             else {
-                fprintf(stderr, "Syntax Error: Expected identifier, but got %s\n", tok()->lexeme);
-                next_tok();
+                fprintf(stderr, "Syntax Error at line %d: Expected identifier, but got %s\n", tok()->lineno, tok()->lexeme);
             }
             break;
         case TOK_TYPE_OPENBRACE:
@@ -238,11 +253,11 @@ void parse_idsuffix(void)
         case TOK_TYPE_OPENPAREN:
         case TOK_TYPE_CLOSEPAREN:
         case TOK_TYPE_ID:
+        case TOK_TYPE_COMMA:
         case TOK_TYPE_EOF:
             break;
         default:
-            fprintf(stderr, "Syntax Error: Expected . { } string number = += ) ( identifier or EOF but got %s\n", tok()->lexeme);
-            next_tok();
+            fprintf(stderr, "Syntax Error at line %d: Expected . { } string number = += ) ( identifier , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -251,21 +266,20 @@ void parse_idfollow(void)
 {
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
+            next_tok();
             parse_aggregate_list();
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
             else {
-                fprintf(stderr, "Syntax Error: Exprected ) but got %s\n", tok()->lexeme);
-                next_tok();
+                fprintf(stderr, "Syntax Error at line %d: Exprected ) but got %s\n", tok()->lineno,  tok()->lexeme);
             }
             break;
         case TOK_TYPE_ASSIGNOP:
             parse_assignment();
             break;
         default:
-            fprintf(stderr, "Syntax Error: Expected ( = or += but got: %s\n", tok()->lexeme);
-            next_tok();
+            fprintf(stderr, "Syntax Error at line %d: Expected ( = or += but got: %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -283,11 +297,11 @@ void parse_optfollow(void)
         case TOK_TYPE_NUM:
         case TOK_TYPE_CLOSEPAREN:
         case TOK_TYPE_ID:
+        case TOK_TYPE_COMMA:
         case TOK_TYPE_EOF:
             break;
         default:
-            fprintf(stderr, "Syntax Error: Expected = += ( } { string number ) id or EOF but got %s\n", tok()->lexeme);
-            next_tok();
+            fprintf(stderr, "Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -299,8 +313,7 @@ void parse_assignment(void)
         parse_expression();
     }
     else {
-        fprintf(stderr, "Syntax Error: Expected += or = but got %s\n", tok()->lexeme);
-        next_tok();
+        fprintf(stderr, "Syntax Error at line %d: Expected += or = but got %s\n", tok()->lineno, tok()->lexeme);
     }
 }
 
@@ -315,13 +328,13 @@ void parse_expression(void)
             break;
         case TOK_TYPE_ID:
             parse_id();
+            parse_optfollow();
             break;
         case TOK_TYPE_OPENBRACE:
             parse_aggregate();
             break;
         default:
-            fprintf(stderr, "Syntax Error: Expected number string identifer or { but got %s\n", tok()->lexeme);
-            next_tok();
+            fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -335,13 +348,11 @@ void parse_aggregate(void)
             next_tok();
         }
         else {
-            fprintf(stderr, "Syntax Error: Expected } but got %s\n", tok()->lexeme);
-            next_tok();
+            fprintf(stderr, "Syntax Error at line %d: Expected } but got %s\n", tok()->lineno, tok()->lexeme);
         }
     }
     else {
-        fprintf(stderr, "Syntax Error: Expected { but got %s\n", tok()->lexeme);
-        next_tok();
+        fprintf(stderr, "Syntax Error at line %d: Expected { but got %s\n", tok()->lineno, tok()->lexeme);
     }
 }
 
@@ -353,30 +364,54 @@ void parse_aggregate_list(void)
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
             parse_expression();
+            parse_aggregate_list_();
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
             break;
         default:
-            fprintf(stderr, "Syntax Error: Expected { string number identifier } or ) but got %s\n", tok()->lexeme);
+            fprintf(stderr, "Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
+            break;
+    }
+}
+
+void parse_aggregate_list_(void)
+{
+    switch(tok()->type) {
+        case TOK_TYPE_COMMA:
             next_tok();
+            parse_expression();
+            parse_aggregate_list_();
+            break;
+        case TOK_TYPE_CLOSEBRACE:
+        case TOK_TYPE_CLOSEPAREN:
+            break;
+        default:
+            fprintf(stderr, "Syntax Error at line %d: Expected , } or ) but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
 
 bool ident_add(char *key, int att)
 {
-    sym_record_s *rec = symtable.table[hash_pjw(key)];
+    uint16_t index = hash_pjw(key);
+    sym_record_s *rec = symtable.table[index];
     
-    while(rec->next) {
+    if(rec) {
+        while(rec->next) {
+            if(!strcmp(rec->string, key))
+                return false;
+            rec = rec->next;
+        }
         if(!strcmp(rec->string, key))
             return false;
+        rec->next = alloc(sizeof(*rec));
         rec = rec->next;
     }
-    if(!strcmp(rec->string, key))
-        return false;
-    rec->next = alloc(sizeof(*rec));
-    rec = rec->next;
+    else {
+        rec = alloc(sizeof(*rec));
+        symtable.table[index] = rec;
+    }
     rec->string = key;
     rec->att = att;
     rec->next = NULL;

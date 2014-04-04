@@ -1,6 +1,6 @@
 
 <statement>->
-    <id> <idfollow>
+    <id> <idfollow> <statement> | ε
 
 <id> ->
     id <idsuffix>
@@ -28,6 +28,8 @@
             { <aggregate_list> }
 
 <aggregate_list> -> 
-            <expression> <aggregate_list> | ε
+            <expression>  <aggregate_list'> | ε
 
+<aggregate_list'> ->
+            , <expression> <aggregate_list'> | ε
 

@@ -41,6 +41,7 @@ struct token_s
     tok_types_e type;
     tok_att_s att;
     char *lexeme;
+    int lineno;
     token_s *next;
     token_s *prev;
 };
