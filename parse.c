@@ -1,6 +1,7 @@
 #include "parse.h"
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -20,7 +21,7 @@ static char *source;
 
 static void readfile(const char *name);
 static void lex(const char *name);
-static void add_token(char *lexeme, tok_types_e type);
+static void add_token(char *lexeme, tok_types_e type, tok_att_s att);
 static void print_tokens(void);
 
 void parse(const char *file)
@@ -41,58 +42,86 @@ void lex(const char *name)
             case '\n':
             case '\t':
             case '\v':
-                bptr = ++fptr;
+                fptr++;
                 break;
             case '.':
-                add_token(".", TOK_TYPE_DOT);
-                bptr = ++fptr;
+                add_token(".", TOK_TYPE_DOT, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case ',':
-                add_token(",", TOK_TYPE_COMMA);
-                bptr = ++fptr;
+                add_token(",", TOK_TYPE_COMMA, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case '{':
-                add_token("{", TOK_TYPE_OPENBRACE);
-                bptr = ++fptr;
+                add_token("{", TOK_TYPE_OPENBRACE, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case '}':
-                add_token("}", TOK_TYPE_CLOSEBRACE);
-                bptr = ++fptr;
+                add_token("}", TOK_TYPE_CLOSEBRACE, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case ')':
-                add_token(")", TOK_TYPE_OPENPAREN);
-                bptr = ++fptr;
+                add_token(")", TOK_TYPE_OPENPAREN, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case '(':
-                add_token("(", TOK_TYPE_CLOSEPAREN);
-                bptr = ++fptr;
+                add_token("(", TOK_TYPE_CLOSEPAREN, TOK_ATT_DEFAULT);
+                fptr++;
                 break;
             case '"':
+                bptr = fptr;
                 while(*++fptr != '"') {
-                    putchar(*fptr);
-                    fflush(stdout);
                     if(!*fptr)
                         fprintf(stderr, "Improperly closed double quote\n");
                 }
                 c = *++fptr;
                 *fptr = '\0';
-                add_token(bptr, TOK_TYPE_STRING);
+                add_token(bptr, TOK_TYPE_STRING, TOK_ATT_DEFAULT);
                 bptr = fptr;
                 *fptr = c;
                 break;
-            default:
+            case '=':
+                add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_DEFAULT);
                 fptr++;
+                break;
+            default:
+                bptr = fptr;
+                if(isalpha(*fptr)) {
+                    while(isalnum(*++fptr));
+                    c = *fptr;
+                    *fptr = '\0';
+                    add_token(bptr, TOK_TYPE_ID, TOK_ATT_DEFAULT);
+                    *fptr = c;
+                }
+                else if(isdigit(*fptr)) {
+                    while(isdigit(*++fptr));
+                    if(*fptr == '.') {
+                        while(isdigit(*++fptr));
+                        c = *fptr;
+                        *fptr = '\0';
+                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_REAL);
+                        *fptr = c;
+                    }
+                    else {
+                        c = *fptr;
+                        *fptr = '\0';
+                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INT);
+                        *fptr = c;
+                    }
+                }
+                
                 break;
         }
     }
     print_tokens();
 }
 
-void add_token(char *lexeme, tok_types_e type)
+void add_token(char *lexeme, tok_types_e type, tok_att_s att)
 {
     token_s *t = alloc(sizeof(*t));
     
     t->type = type;
+    t->att = att;
     t->lexeme = alloc(strlen(lexeme));
     strcpy(t->lexeme, lexeme);
     t->next = NULL;

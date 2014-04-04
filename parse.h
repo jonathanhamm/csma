@@ -6,6 +6,7 @@
 typedef struct buf_s buf_s;
 typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
+typedef enum tok_att_s tok_att_s;
 
 enum tok_types_e {
     TOK_TYPE_ID = 0,
@@ -15,7 +16,15 @@ enum tok_types_e {
     TOK_TYPE_CLOSEBRACE = 4,
     TOK_TYPE_OPENPAREN = 5,
     TOK_TYPE_CLOSEPAREN = 6,
-    TOK_TYPE_STRING = 7
+    TOK_TYPE_STRING = 7,
+    TOK_TYPE_ASSIGNOP = 8,
+    TOK_TYPE_NUM = 9
+};
+
+enum tok_att_s {
+    TOK_ATT_DEFAULT,
+    TOK_ATT_INT,
+    TOK_ATT_REAL
 };
 
 struct buf_s
@@ -27,6 +36,7 @@ struct buf_s
 struct token_s
 {
     tok_types_e type;
+    tok_att_s att;
     char *lexeme;
     token_s *next;
     token_s *prev;
