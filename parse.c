@@ -256,8 +256,18 @@ void parse_idfollow(void)
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
-            
-            
+            else {
+                fprintf(stderr, "Syntax Error: Exprected ) but got %s\n", tok()->lexeme);
+                next_tok();
+            }
+            break;
+        case TOK_TYPE_ASSIGNOP:
+            parse_assignment();
+            break;
+        default:
+            fprintf(stderr, "Syntax Error: Expected ( = or += but got: %s\n", tok()->lexeme);
+            next_tok();
+            break;
     }
 }
 
