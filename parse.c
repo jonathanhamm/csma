@@ -388,7 +388,21 @@ void parse_index(access_list_s **acc)
                     (*acc)->next = NULL;
                 }
                 else {
-                    fprintf(stderr, "Invalid Type Used to index aggregate object near line %d. Expected integer.\n", tbackup->lineno);
+                    fprintf(stderr, "Invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
+                    switch(exp.type) {
+                        case TYPE_REAL:
+                            puts("real.");
+                            break;
+                        case TYPE_STRING:
+                            puts("string.");
+                            break;
+                        case TYPE_AGGREGATE:
+                            puts("aggregate.");
+                            break;
+                        default:
+                            puts("unknown.");
+                            break;
+                    }
                 }
                 next_tok();
                 parse_index(acc);
