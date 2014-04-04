@@ -30,7 +30,7 @@ void parse(const char *file)
 
 void lex(const char *name)
 {
-    char *bptr, *fptr;
+    char *bptr, *fptr, c;
     
     readfile(name);
     bptr = fptr = source;
@@ -48,12 +48,42 @@ void lex(const char *name)
                 bptr = ++fptr;
                 break;
             case ',':
-                add_token(",", TOKE_TYPE_COMMA);
+                add_token(",", TOK_TYPE_COMMA);
                 bptr = ++fptr;
                 break;
-                
+            case '{':
+                add_token("{", TOK_TYPE_OPENBRACE);
+                bptr = ++fptr;
+                break;
+            case '}':
+                add_token("}", TOK_TYPE_CLOSEBRACE);
+                bptr = ++fptr;
+                break;
+            case ')':
+                add_token(")", TOK_TYPE_OPENPAREN);
+                bptr = ++fptr;
+                break;
+            case '(':
+                add_token("(", TOK_TYPE_CLOSEPAREN);
+                bptr = ++fptr;
+                break;
+            case '"':
+                while(*++fptr != '"') {
+                    putchar(*fptr);
+                    fflush(stdout);
+                    if(!*fptr)
+                        fprintf(stderr, "Improperly closed double quote\n");
+                }
+                c = *++fptr;
+                *fptr = '\0';
+                add_token(bptr, TOK_TYPE_STRING);
+                bptr = fptr;
+                *fptr = c;
+                break;
+            default:
+                fptr++;
+                break;
         }
-        fptr++;
     }
     print_tokens();
 }

@@ -10,7 +10,12 @@ typedef enum tok_types_e tok_types_e;
 enum tok_types_e {
     TOK_TYPE_ID = 0,
     TOK_TYPE_DOT = 1,
-    TOKE_TYPE_COMMA = 2
+    TOK_TYPE_COMMA = 2,
+    TOK_TYPE_OPENBRACE = 3,
+    TOK_TYPE_CLOSEBRACE = 4,
+    TOK_TYPE_OPENPAREN = 5,
+    TOK_TYPE_CLOSEPAREN = 6,
+    TOK_TYPE_STRING = 7
 };
 
 struct buf_s
