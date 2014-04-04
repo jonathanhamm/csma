@@ -31,7 +31,8 @@ enum type_e
     TYPE_INT,
     TYPE_REAL,
     TYPE_STRING,
-    TYPE_AGGREGATE
+    TYPE_AGGREGATE,
+    TYPE_NODE
 };
 
 struct sym_record_s
@@ -129,6 +130,8 @@ static void parse_aggregate_list_(void);
 
 static void agg_add(aggregate_s *list, object_s obj);
 static scope_s *make_scope(scope_s *parent, char *ident);
+
+static void print_accesslist(access_list_s *list);
 
 static char *strclone(char *str);
 
@@ -267,7 +270,7 @@ void lex(const char *name)
     add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT, lineno);
     munmap(source, fstats.st_size);
     close(source_fd);
-    print_tokens();
+    //print_tokens();
 }
 
 void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
@@ -303,7 +306,7 @@ void print_tokens(void)
 void parse_statement(void)
 {
     if(tok()->type == TOK_TYPE_ID) {
-        parse_id();
+        print_accesslist(parse_id());
         parse_idfollow();
         parse_statement();
     }
@@ -341,6 +344,7 @@ void parse_idsuffix(access_list_s **acc)
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
                 (*acc)->next = alloc(sizeof(**acc));
+                *acc = (*acc)->next;
                 (*acc)->name = tok()->lexeme;
                 (*acc)->isindex = false;
                 (*acc)->next = NULL;
@@ -383,6 +387,7 @@ void parse_index(access_list_s **acc)
             if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
                 if(exp.type == TYPE_INT) {
                     (*acc)->next = alloc(sizeof(**acc));
+                    *acc = (*acc)->next;
                     (*acc)->index = atoi(exp.tok->lexeme);
                     (*acc)->isindex = true;
                     (*acc)->next = NULL;
@@ -391,16 +396,16 @@ void parse_index(access_list_s **acc)
                     fprintf(stderr, "Invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
                     switch(exp.type) {
                         case TYPE_REAL:
-                            puts("real.");
+                            puts("real type.");
                             break;
                         case TYPE_STRING:
-                            puts("string.");
+                            puts("string type.");
                             break;
                         case TYPE_AGGREGATE:
-                            puts("aggregate.");
+                            puts("aggregate type.");
                             break;
                         default:
-                            puts("unknown.");
+                            puts("unknown type.");
                             break;
                     }
                 }
@@ -604,6 +609,25 @@ scope_s *make_scope(scope_s *parent, char *ident)
     }
     return s;
 }
+
+void print_accesslist(access_list_s *list)
+{
+    access_list_s *l;
+    
+    for(l = list; l; l = l->next) {
+        if(l->isindex) {
+            printf("[%d]", l->index);
+        }
+        else {
+            if(l == list)
+                printf("%s", l->name);
+            else
+                printf("->%s", l->name);
+        }
+    }
+    putchar('\n');
+}
+
 
 bool ident_add(char *key, int att)
 {
