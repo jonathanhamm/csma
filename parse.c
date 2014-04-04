@@ -171,6 +171,10 @@ void lex(const char *name)
                         *fptr = c;
                     }
                 }
+                else {
+                    fprintf(stderr, "Lexical Error at line %d: Unknown symbol %c\n", lineno, *fptr);
+                    fptr++;
+                }
                 break;
         }
     }
