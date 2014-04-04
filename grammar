@@ -6,7 +6,7 @@
     id <idsuffix>
 
 <idsuffix> ->
-        . id | ε
+        . id <idsuffix> | ε
 
 <idfollow>->
     ( <aggregate_list> )

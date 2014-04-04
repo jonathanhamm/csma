@@ -293,6 +293,7 @@ void parse_idsuffix(void)
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
                 next_tok();
+                parse_idsuffix();
             }
             else {
                 fprintf(stderr, "Syntax Error at line %d: Expected identifier, but got %s\n", tok()->lineno, tok()->lexeme);
@@ -464,7 +465,7 @@ void agg_add(aggregate_s *list, token_s *tok)
     
 }
 
-scope_s *make_scope(scope_s *parent, char *ident);
+scope_s *make_scope(scope_s *parent, char *ident)
 {
     
 }
