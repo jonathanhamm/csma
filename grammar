@@ -10,19 +10,59 @@
 
 <idfollow>->
     ( <aggregate_list> )
+    {
+        <idfollow>.op := call
+        <idfollow>.type := <aggregate_list>.type
+        <idfollow>.val := <aggregate_list>.val
+    }
     |
     <assignment>
+    {
+        <idfollow>.op := <assign>.op
+        <idfollow>.type := <assigment>.type
+        <assignment>.val := <assignment>.val
+    }
 
 <optfollow>->
-    <idfollow> | ε
+    <idfollow> 
+    {
+        <optfollow>.op := <idfollow>.op
+        <opfollow>.type := <idfollow>.type
+        <optfollow>.val := <idfollow>.val
+    }
+    | 
+    ε
 
 
 <assignment> ->
             assignop <expression>
+            {
+                <assignment>.op := assignop.op
+                <assignment>.type := <expression>.type
+                <assignment>.type := <expression>.val
+
+            }
 
 
 <expression> ->
-            num | string | <id> <optfollow> | <aggregate>
+            num 
+            {
+                <expression>.type = num.type
+                <expression>.val = num.val
+            }
+            | 
+            string
+            {
+                <expression>.type = string
+                <expression>.val = string
+            }
+            | 
+            <id> <optfollow>
+            {
+                if <optfollow>
+            }
+            | 
+            <aggregate>
 
 <aggregate> -> 
             { <aggregate_list> }
