@@ -12,6 +12,8 @@ struct buf_s
 };
 
 
+extern void parse(const char *file);
+
 extern buf_s *buf_init(void);
 extern void buf_addc(buf_s **b, int c);
 void buf_addstr(buf_s **b, char *str, size_t size);

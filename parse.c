@@ -17,7 +17,47 @@ static char *func_send2[][2] = {
 
 static const char *source;
 
-void readfile(const char *name);
+static void readfile(const char *name);
+static void lex(const char *name);
+
+void parse(const char *file)
+{
+    lex(file);
+}
+
+void lex(const char *name)
+{
+    const char *bptr = source;
+    readfile(name);
+    
+    while(*bptr) {
+        
+    }
+    
+}
+
+void readfile(const char *name)
+{
+    int fd, status;
+    struct stat stats;
+    
+    fd = open(name, O_RDONLY);
+    if(fd < 0) {
+        perror("Failed to open file");
+        exit(EXIT_FAILURE);
+    }
+    
+    status = fstat(fd, &stats);
+    if(status < 0) {
+        perror("Failed to obtain file info");
+        exit(EXIT_FAILURE);
+    }
+    source = mmap(0, stats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if(source == MAP_FAILED) {
+        perror("Failed to read file");
+        exit(EXIT_FAILURE);
+    }
+}
 
 buf_s *buf_init(void)
 {
@@ -54,20 +94,6 @@ void buf_addstr(buf_s **b, char *str, size_t size)
     strcpy(&bb->buf[old], str);
 }
 
-
-void readfile(const char *name)
-{
-    int fd, status;
-    struct stat stats;
-    
-    fd = open(name, O_RDONLY);
-    if(fd < 0) {
-        perror("Failed to open file");
-        exit(EXIT_FAILURE);
-    }
-    status = fstat(fd, &stats);
-    
-}
 
 void *alloc(size_t size)
 {
