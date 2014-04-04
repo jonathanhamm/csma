@@ -12,6 +12,7 @@
 #define SYM_TABLE_SIZE 93
 
 #define next_tok() (tokcurr = tokcurr->next)
+#define tok() (tokcurr)
 
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
@@ -123,12 +124,12 @@ void lex(const char *name)
                 *fptr = c;
                 break;
             case '=':
-                add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_DEFAULT);
+                add_token("=", TOK_TYPE_ASSIGNOP, TOK_ATT_EQ);
                 fptr++;
                 break;
             case '+':
                 if(*++fptr == '=') {
-                    add_token("+=", TOK_TYPE_PLUSEQ, TOK_ATT_DEFAULT);
+                    add_token("+=", TOK_TYPE_ASSIGNOP, TOK_ATT_PLUSEQ);
                     fptr++;
                 }
                 else {
@@ -164,10 +165,10 @@ void lex(const char *name)
                         *fptr = c;
                     }
                 }
-                
                 break;
         }
     }
+    add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT);
     print_tokens();
 }
 
@@ -202,22 +203,62 @@ void print_tokens(void)
 
 void parse_statement(void)
 {
-    
+    parse_id();
+    parse_idfollow();
 }
 
 void parse_id(void)
 {
-    
+    if(tok()->type == TOK_TYPE_ID) {
+        next_tok();
+        parse_idsuffix();
+    }
+    else {
+        fprintf(stderr, "Syntax Error: Expected identifier but got %s\n", tokcurr->lexeme);
+        next_tok();
+    }
 }
 
 void parse_idsuffix(void)
 {
-    
+    switch(tok()->type) {
+        case TOK_TYPE_DOT:
+            if(next_tok()->type == TOK_TYPE_ID) {
+                next_tok();
+            }
+            else {
+                fprintf(stderr, "Syntax Error: Expected identifier, but got %s\n", tok()->lexeme);
+                next_tok();
+            }
+            break;
+        case TOK_TYPE_OPENBRACE:
+        case TOK_TYPE_CLOSEBRACE:
+        case TOK_TYPE_STRING:
+        case TOK_TYPE_NUM:
+        case TOK_TYPE_ASSIGNOP:
+        case TOK_TYPE_OPENPAREN:
+        case TOK_TYPE_CLOSEPAREN:
+        case TOK_TYPE_ID:
+        case TOK_TYPE_EOF:
+            break;
+        default:
+            fprintf(stderr, "Syntax Error: Expected . { } string number = += ) ( identifier or EOF but got %s\n", tok()->lexeme);
+            next_tok();
+            break;
+    }
 }
 
 void parse_idfollow(void)
 {
-    
+    switch(tok()->type) {
+        case TOK_TYPE_OPENPAREN:
+            parse_aggregate_list();
+            if(tok()->type == TOK_TYPE_CLOSEPAREN) {
+                next_tok();
+            }
+            
+            
+    }
 }
 
 void parse_optfollow(void)
@@ -244,8 +285,6 @@ void parse_aggregate_list(void)
 {
     
 }
-
-
 
 bool ident_add(char *key, int att)
 {

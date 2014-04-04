@@ -19,13 +19,15 @@ enum tok_types_e {
     TOK_TYPE_STRING = 7,
     TOK_TYPE_ASSIGNOP = 8,
     TOK_TYPE_NUM = 9,
-    TOK_TYPE_PLUSEQ = 10
+    TOK_TYPE_EOF = 10
 };
 
 enum tok_att_s {
     TOK_ATT_DEFAULT,
     TOK_ATT_INT,
-    TOK_ATT_REAL
+    TOK_ATT_REAL,
+    TOK_ATT_EQ,
+    TOK_ATT_PLUSEQ
 };
 
 struct buf_s
