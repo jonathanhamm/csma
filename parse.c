@@ -9,14 +9,13 @@
 #include <fcntl.h>
 
 #define INIT_BUF_SIZE 256
-#define SYM_TABLE_SIZE 93
+#define SYM_TABLE_SIZE 97
 
 #define next_tok() (tokcurr = tokcurr->next)
 #define tok() (tokcurr)
 
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
-
 
 struct sym_record_s
 {
@@ -273,7 +272,24 @@ void parse_idfollow(void)
 
 void parse_optfollow(void)
 {
-    
+    switch(tok()->type) {
+        case TOK_TYPE_ASSIGNOP:
+        case TOK_TYPE_OPENPAREN:
+            parse_idfollow();
+            break;
+        case TOK_TYPE_CLOSEBRACE:
+        case TOK_TYPE_OPENBRACE:
+        case TOK_TYPE_STRING:
+        case TOK_TYPE_NUM:
+        case TOK_TYPE_CLOSEPAREN:
+        case TOK_TYPE_ID:
+        case TOK_TYPE_EOF:
+            break;
+        default:
+            fprintf(stderr, "Syntax Error: Expected = += ( } { string number ) id or EOF but got %s\n", tok()->lexeme);
+            next_tok();
+            break;
+    }
 }
 
 void parse_assignment(void)
