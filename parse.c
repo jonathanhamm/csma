@@ -2,12 +2,32 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 
 #define INIT_BUF_SIZE 256
+#define SYM_TABLE_SIZE 93
+
+#define next_tok() (tokcurr = tokcurr->next)
+
+typedef struct sym_record_s sym_record_s;
+typedef struct sym_table_s sym_table_s;
+
+
+struct sym_record_s
+{
+    int att;
+    char *string;
+    sym_record_s *next;
+};
+
+struct sym_table_s
+{
+    sym_record_s *table[SYM_TABLE_SIZE];
+};
 
 static char *func_send2[][2] = {
     {"dest", NULL}
@@ -15,7 +35,10 @@ static char *func_send2[][2] = {
 };
 
 static token_s *head;
+static token_s *tokcurr;
 static token_s *tail;
+
+static sym_table_s symtable;
 
 static char *source;
 
@@ -23,6 +46,20 @@ static void readfile(const char *name);
 static void lex(const char *name);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att);
 static void print_tokens(void);
+
+static void parse_statement(void);
+static void parse_id(void);
+static void parse_assgiment(void);
+static void parse_idsuffix(void);
+static void parse_expression(void);
+static void parse_optassign(void);
+static void parse_aggregate(void);
+static void parse_aggregate_list(void);
+static void parse_call(void);
+
+static bool add_ident(char *key, int att);
+static sym_record_s *ident_lookup(char *key);
+static uint16_t hash_pjw(char *key);
 
 void parse(const char *file)
 {
@@ -154,6 +191,93 @@ void print_tokens(void)
         printf("%s %d\n", t->lexeme, t->type);
 }
 
+void parse_statement(void)
+{
+    
+}
+
+void parse_id(void)
+{
+    
+}
+
+void parse_assgiment(void)
+{
+    
+}
+
+void parse_idsuffix(void)
+{
+    
+}
+
+void parse_expression(void)
+{
+    
+}
+
+void parse_optassign(void)
+{
+    
+}
+
+void parse_aggregate(void)
+{
+    
+}
+
+void parse_aggregate_list(void)
+{
+    
+}
+
+void parse_call(void)
+{
+    
+}
+
+bool add_ident(char *key, int att)
+{
+    sym_record_s *rec = symtable.table[hash_pjw(key)];
+    
+    while(rec->next) {
+        if(!strcmp(rec->string, key))
+            return false;
+        rec = rec->next;
+    }
+    if(!strcmp(rec->string, key))
+        return false;
+    rec->next = alloc(sizeof(*rec));
+    rec = rec->next;
+    rec->string = key;
+    rec->att = att;
+    rec->next = NULL;
+    return true;
+}
+
+sym_record_s *ident_lookup(char *key)
+{
+    sym_record_s *rec = symtable.table[hash_pjw(key)];
+    
+    while(rec) {
+        if(!strcmp(rec->string, key))
+            return rec;
+        rec = rec->next;
+    }
+    return NULL;
+}
+
+uint16_t hash_pjw(char *key)
+{
+    uint32_t h = 0, g;
+    
+    while(*key) {
+        h = (h << 4) + *key++;
+        if((g = h & (uint32_t)0xf0000000))
+            h = (h ^ (g >> 24)) ^ g;
+    }
+    return (uint16_t)(h % SYM_TABLE_SIZE);
+}
 
 void readfile(const char *name)
 {
