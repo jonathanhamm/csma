@@ -120,9 +120,9 @@ static void parse_statement(void);
 static access_list_s *parse_id(void);
 static void parse_idsuffix(access_list_s **acc);
 static void parse_index(access_list_s **acc);
-static void parse_idfollow(void);
-static void parse_optfollow(void);
-static void parse_assignment(void);
+static void parse_idfollow(access_list_s *acc);
+static void parse_optfollow(access_list_s *acc);
+static object_s parse_assignment(void);
 static object_s parse_expression(void);
 static aggregate_s *parse_aggregate(void);
 static void parse_aggregate_list(void);
@@ -305,9 +305,11 @@ void print_tokens(void)
 
 void parse_statement(void)
 {
+    access_list_s *list;
+    
     if(tok()->type == TOK_TYPE_ID) {
-        print_accesslist(parse_id());
-        parse_idfollow();
+        list = parse_id();
+        parse_idfollow(list);
         parse_statement();
     }
     else if(tok()->type == TOK_TYPE_EOF) {
@@ -433,7 +435,7 @@ void parse_index(access_list_s **acc)
 }
 
 
-void parse_idfollow(void)
+void parse_idfollow(access_list_s *acc)
 {
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
@@ -455,12 +457,12 @@ void parse_idfollow(void)
     }
 }
 
-void parse_optfollow(void)
+void parse_optfollow(access_list_s *acc)
 {
     switch(tok()->type) {
         case TOK_TYPE_ASSIGNOP:
         case TOK_TYPE_OPENPAREN:
-            parse_idfollow();
+            parse_idfollow(acc);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_OPENBRACE:
@@ -478,20 +480,24 @@ void parse_optfollow(void)
     }
 }
 
-void parse_assignment(void)
+object_s parse_assignment(void)
 {
+    object_s obj;
+    
     if(tok()->type == TOK_TYPE_ASSIGNOP) {
         next_tok();
-        parse_expression();
+        obj = parse_expression();
     }
     else {
         fprintf(stderr, "Syntax Error at line %d: Expected += or = but got %s\n", tok()->lineno, tok()->lexeme);
     }
+    return obj;
 }
 
 object_s parse_expression(void)
 {
     object_s obj;
+    access_list_s *acc;
     
     switch(tok()->type) {
         case TOK_TYPE_NUM:
@@ -508,8 +514,8 @@ object_s parse_expression(void)
             next_tok();
             break;
         case TOK_TYPE_ID:
-            parse_id();
-            parse_optfollow();
+            acc = parse_id();
+            parse_optfollow(acc);
             break;
         case TOK_TYPE_OPENBRACE:
             obj.tok = tok();

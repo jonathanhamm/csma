@@ -4,13 +4,30 @@
 
 <id> ->
     id <index> <idsuffix>
+    {
+        <id>.val := accesslist()
+        <index>.in := <id>.val
+        <idsuffix>.in := <id>.val
+    }
 
 <idsuffix> ->
-        . id <index> <idsuffix> | ε
+        . id <index> <idsuffix>
+        {
+            <idsuffix>.in.add(id.val)
+            <index>.in := <idsuffix>.in
+            <idsuffix>[1].in := <idsuffix>.in
+        }
+        |
 
 
 <index> ->
-    [ <expression> ] <index> | ε
+    [ <expression> ] <index> 
+    {
+        <index>.in.add(<expression>.val)
+        <index>[1].in := <index>.in
+    }
+    |
+    ε
 
 <idfollow>->
     ( <aggregate_list> )
