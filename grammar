@@ -3,10 +3,14 @@
     <id> <idfollow> <statement> | ε
 
 <id> ->
-    id <idsuffix>
+    id <index> <idsuffix>
 
 <idsuffix> ->
-        . id <idsuffix> | ε
+        . id <index> <idsuffix> | ε
+
+
+<index> ->
+    [ <expression> ] <index> | ε
 
 <idfollow>->
     ( <aggregate_list> )

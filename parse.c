@@ -51,6 +51,7 @@ struct object_s
         aggregate_s *agg;
     };
     type_e type;
+    bool islazy;
 };
 
 struct aggnode_s
@@ -103,6 +104,7 @@ static uint16_t hash_pjw(char *key);
 static void parse_statement(void);
 static void parse_id(void);
 static void parse_idsuffix(void);
+static void parse_index(void);
 static void parse_idfollow(void);
 static void parse_optfollow(void);
 static void parse_assignment(void);
@@ -111,7 +113,7 @@ static aggregate_s *parse_aggregate(void);
 static void parse_aggregate_list(void);
 static void parse_aggregate_list_(void);
 
-static void agg_add(aggregate_s *list, token_s *tok);
+static void agg_add(aggregate_s *list, object_s obj);
 static scope_s *make_scope(scope_s *parent, char *ident);
 
 static char *strclone(char *str);
@@ -137,6 +139,12 @@ void lex(const char *name)
         switch(*fptr) {
             case '\n':
                 lineno++;
+                fptr++;
+                if(*fptr == '#') {
+                    while(*fptr && *fptr != '\n')
+                        fptr++;
+                }
+                break;
             case ' ':
             case '\t':
             case '\v':
@@ -159,12 +167,19 @@ void lex(const char *name)
                 fptr++;
                 break;
             case ')':
-                
                 add_token(")", TOK_TYPE_CLOSEPAREN, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '(':
                 add_token("(", TOK_TYPE_OPENPAREN, TOK_ATT_DEFAULT, lineno);
+                fptr++;
+                break;
+            case '[':
+                add_token("[", TOK_TYPE_OPENBRACKET, TOK_ATT_DEFAULT, lineno);
+                fptr++;
+                break;
+            case ']':
+                add_token("]", TOK_TYPE_CLOSE_BRACKET, TOK_ATT_DEFAULT, lineno);
                 fptr++;
                 break;
             case '"':
@@ -286,6 +301,7 @@ void parse_id(void)
 {
     if(tok()->type == TOK_TYPE_ID) {
         next_tok();
+        parse_index();
         parse_idsuffix();
     }
     else {
@@ -299,6 +315,7 @@ void parse_idsuffix(void)
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
                 next_tok();
+                parse_index();
                 parse_idsuffix();
             }
             else {
@@ -314,6 +331,7 @@ void parse_idsuffix(void)
         case TOK_TYPE_CLOSEPAREN:
         case TOK_TYPE_ID:
         case TOK_TYPE_COMMA:
+        case TOK_TYPE_CLOSE_BRACKET:
         case TOK_TYPE_EOF:
             break;
         default:
@@ -321,6 +339,37 @@ void parse_idsuffix(void)
             break;
     }
 }
+
+void parse_index(void)
+{
+    switch(tok()->type) {
+        case TOK_TYPE_OPENBRACKET:
+            next_tok();
+            parse_expression();
+            if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
+                next_tok();
+                parse_index();
+            }
+            else {
+                printf("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
+            }
+            break;
+        case TOK_TYPE_COMMA:
+        case TOK_TYPE_CLOSEBRACE:
+        case TOK_TYPE_ASSIGNOP:
+        case TOK_TYPE_CLOSEPAREN:
+        case TOK_TYPE_OPENPAREN:
+        case TOK_TYPE_CLOSE_BRACKET:
+        case TOK_TYPE_DOT:
+        case TOK_TYPE_ID:
+        case TOK_TYPE_EOF:
+            break;
+        default:
+            printf("Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s\n", tok()->lineno, tok()->lexeme);
+            break;
+    }
+}
+
 
 void parse_idfollow(void)
 {
@@ -358,6 +407,7 @@ void parse_optfollow(void)
         case TOK_TYPE_CLOSEPAREN:
         case TOK_TYPE_ID:
         case TOK_TYPE_COMMA:
+        case TOK_TYPE_CLOSE_BRACKET:
         case TOK_TYPE_EOF:
             break;
         default:
@@ -466,9 +516,20 @@ void parse_aggregate_list_(void)
     }
 }
 
-void agg_add(aggregate_s *list, token_s *tok)
+void agg_add(aggregate_s *list, object_s obj)
 {
     
+    aggnode_s *n;
+    
+    n = alloc(sizeof(*n));
+    
+    n->obj = obj;
+    n->next = NULL;
+    if(list->head)
+        list->tail->next = n;
+    else
+        list->head = n;
+    list->tail = n;
 }
 
 scope_s *make_scope(scope_s *parent, char *ident)

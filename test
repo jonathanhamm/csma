@@ -1,5 +1,10 @@
 
-nodes += {a, b, c}
+nodes = {n1 = node(1), n2 = node(2), n3 = node(3), n4 = node(4)}
+
+#Node Declarations
+nodes.n1.send("hello world")
+
+node[3][32][23][234][node.a[32]].a32 = 4
 
 a.bob(1, rand(1), 3)
 
