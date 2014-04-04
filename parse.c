@@ -6,19 +6,22 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
-
 #define INIT_BUF_SIZE 256
-
 
 static char *func_send2[][2] = {
     {"dest", NULL}
     
 };
 
-static const char *source;
+static token_s *head;
+static token_s *tail;
+
+static char *source;
 
 static void readfile(const char *name);
 static void lex(const char *name);
+static void add_token(char *lexeme, tok_types_e type);
+static void print_tokens(void);
 
 void parse(const char *file)
 {
@@ -27,21 +30,69 @@ void parse(const char *file)
 
 void lex(const char *name)
 {
-    const char *bptr = source;
+    char *bptr, *fptr;
+    
     readfile(name);
+    bptr = fptr = source;
     
-    while(*bptr) {
-        
+    while(*fptr) {
+        switch(*fptr) {
+            case ' ':
+            case '\n':
+            case '\t':
+            case '\v':
+                bptr = ++fptr;
+                break;
+            case '.':
+                add_token(".", TOK_TYPE_DOT);
+                bptr = ++fptr;
+                break;
+            case ',':
+                add_token(",", TOKE_TYPE_COMMA);
+                bptr = ++fptr;
+                break;
+                
+        }
+        fptr++;
     }
-    
+    print_tokens();
 }
+
+void add_token(char *lexeme, tok_types_e type)
+{
+    token_s *t = alloc(sizeof(*t));
+    
+    t->type = type;
+    t->lexeme = alloc(strlen(lexeme));
+    strcpy(t->lexeme, lexeme);
+    t->next = NULL;
+    
+    if(head) {
+        t->prev = tail;
+        tail->next = t;
+    }
+    else {
+        t->prev = NULL;
+        head = t;
+    }
+    tail = t;
+}
+
+void print_tokens(void)
+{
+    token_s *t;
+    
+    for(t = head; t; t = t->next)
+        printf("%s %d\n", t->lexeme, t->type);
+}
+
 
 void readfile(const char *name)
 {
     int fd, status;
     struct stat stats;
     
-    fd = open(name, O_RDONLY);
+    fd = open(name, O_RDWR);
     if(fd < 0) {
         perror("Failed to open file");
         exit(EXIT_FAILURE);
@@ -52,7 +103,7 @@ void readfile(const char *name)
         perror("Failed to obtain file info");
         exit(EXIT_FAILURE);
     }
-    source = mmap(0, stats.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    source = mmap(0, stats.st_size, PROT_WRITE, MAP_PRIVATE, fd, 0);
     if(source == MAP_FAILED) {
         perror("Failed to read file");
         exit(EXIT_FAILURE);
@@ -94,6 +145,11 @@ void buf_addstr(buf_s **b, char *str, size_t size)
     strcpy(&bb->buf[old], str);
 }
 
+void buf_trim(buf_s **b)
+{
+    (*b)->bsize = (*b)->size;
+    *b = ralloc(*b, (*b)->size);
+}
 
 void *alloc(size_t size)
 {
