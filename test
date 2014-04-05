@@ -31,6 +31,7 @@ a.x = 6
 rand()
 
 print("hello")
+print(a)
 
 #a.bob.send("hello world")
 

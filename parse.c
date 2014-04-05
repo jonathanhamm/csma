@@ -182,7 +182,7 @@ static void parse_aggregate_list_(aggregate_s *agg);
 static scope_s *make_scope(scope_s *parent, char *ident);
 static check_s check_entry(access_list_s *acc);
 static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
-static bool function_check(check_s check);
+static bool function_check(check_s check, object_s args);
 
 static void print_accesslist(access_list_s *list);
 static void print_object(object_s obj);
@@ -385,7 +385,7 @@ void parse_statement(void)
         check = check_entry(list);
         if(obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check);
+                function_check(check, obj);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
@@ -622,12 +622,11 @@ exp_s parse_expression(void)
         
             obj = parse_optfollow(acc);
             check = check_entry(acc);
-            if(check.found)
+            if(check.found) {
                 exp.obj = check.node->object;
+            }
             else {
-                if(check.lastfailed) {
-                    //printf("failed at: %s\n", check.last->name);
-                }
+                printf("Access to undeclared identifier: %s\n", check.last->name);
             }
             break;
         case TOK_TYPE_OPENBRACE:
@@ -665,6 +664,7 @@ aggregate_s *parse_aggregate(void)
 aggregate_s *parse_aggregate_list(void)
 {
     exp_s exp;
+    check_s check;
     aggregate_s *agg = NULL;
     
     switch(tok()->type) {
@@ -802,7 +802,7 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
 }
 
 
-bool function_check(check_s check)
+bool function_check(check_s check, object_s args)
 {
     int i;
     char *str = check.last->name;
@@ -817,6 +817,7 @@ bool function_check(check_s check)
                     funcs[i].func(NULL);
                     break;
                 case TYPE_ANY:
+                    funcs[i].func(&args);
                     break;
                 default:
                     //if(funcs[i].type == check.last)
@@ -855,7 +856,14 @@ void *net_kill(void *arg)
 
 void *net_print(void *arg)
 {
-    printf("Calling Print\n");
+    object_s *obj = arg;
+    aggnode_s *args;
+    
+    for(args = obj->agg->head; args; args = args->next) {
+        print_object(args->exp.obj);
+    }
+    putchar('\n');
+    return NULL;
 }
 
 
@@ -879,7 +887,7 @@ void print_accesslist(access_list_s *list)
 
 void print_object(object_s obj)
 {
-    aggnode_s *agg;
+    aggnode_s *agg = NULL;
     
     switch(obj.type) {
         case TYPE_INT:
@@ -889,11 +897,16 @@ void print_object(object_s obj)
             break;
         case TYPE_AGGREGATE:
             printf("{ ");
-            for(agg = obj.agg->head; agg->next; agg = agg->next) {
+            if(obj.agg)
+                agg = obj.agg->head;
+            if(agg) {
+                while(agg->next) {
+                    print_object(agg->exp.obj);
+                    printf(", ");
+                    agg = agg->next;
+                }
                 print_object(agg->exp.obj);
-                printf(", ");
             }
-            print_object(agg->exp.obj);
             printf(" }");
             break;
         case TYPE_NODE:
