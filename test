@@ -10,12 +10,17 @@ a = {
 #   Node Commands
 #############################################
 
-
 #broadcast
 a.send("b", "hello son")
 
+a.send("hello world")
 
+a.send(b, "hello world", rand(10), repeat=true)
+
+a.send("hello world")
 
 group = {a.bob, a.omg}
 
 a.bob.send("hello world")
+
+a.b.c = 3

@@ -26,9 +26,10 @@ typedef struct aggnode_s aggnode_s;
 typedef struct aggregate_s aggregate_s;
 typedef struct scope_s scope_s;
 typedef struct access_list_s access_list_s;
+typedef struct check_s check_s;
+typedef struct func_s func_s;
 
 typedef struct params_s params_s;
-typedef struct function_s function_s;
 
 
 enum type_e
@@ -37,7 +38,9 @@ enum type_e
     TYPE_REAL,
     TYPE_STRING,
     TYPE_AGGREGATE,
-    TYPE_NODE
+    TYPE_NODE,
+    TYPE_ARGLIST,
+    TYPE_NULL
 };
 
 struct sym_record_s
@@ -100,23 +103,24 @@ struct access_list_s
     access_list_s *next;
 };
 
+struct check_s
+{
+    bool found;
+    bool lastfailed;
+    access_list_s *last;
+    scope_s *node;
+};
+
 struct params_s
 {
     char *name;
     type_e type;
 };
 
-struct function_s
+struct func_s
 {
-    char name[16];
-    bool isLazy;
-    int nargs;
-    struct {
-        bool is_object_func;
-        type_e acts_on;
-    }
-    object;
-    params_s paramlist;
+    char *name;
+    type_e type;
 };
 
 static token_s *head;
@@ -131,20 +135,20 @@ static char *source;
 static int source_fd;
 static struct stat fstats;
 
-static function_s funcs[] = {
-    {"node", false, -1, {false, 1}, {"node", TYPE_STRING}}
-};
+#define N_FUNCS 4
 
-
-static char *functions[] = {
-    "rand"
+static func_s funcs[] = {
+    {"send", TYPE_NODE},
+    {"node", TYPE_NULL},
+    {"rand", TYPE_NULL},
+    {"size", TYPE_AGGREGATE},
+    {"kill", TYPE_NODE}
 };
 
 static void readfile(const char *name);
 static void lex(const char *name);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
-
 
 static bool ident_add(char *key, int att);
 static sym_record_s *ident_lookup(char *key);
@@ -154,8 +158,8 @@ static void parse_statement(void);
 static access_list_s *parse_id(void);
 static void parse_idsuffix(access_list_s **acc);
 static void parse_index(access_list_s **acc);
-static void parse_idfollow(access_list_s *acc);
-static void parse_optfollow(access_list_s *acc);
+static object_s parse_idfollow(access_list_s *acc);
+static object_s parse_optfollow(access_list_s *acc);
 static object_s parse_assignment(void);
 static exp_s parse_expression(void);
 static aggregate_s *parse_aggregate(void);
@@ -163,6 +167,8 @@ static aggregate_s *parse_aggregate_list(void);
 static void parse_aggregate_list_(aggregate_s *agg);
 
 static scope_s *make_scope(scope_s *parent, char *ident);
+static check_s check_entry(access_list_s *acc);
+static bool function_check(check_s check);
 
 static void print_accesslist(access_list_s *list);
 
@@ -172,7 +178,7 @@ void parse(const char *file)
 {
     lex(file);
     tokcurr = head;
-    global = make_scope(NULL, "root");
+    global = make_scope(NULL, "_root");
     parse_statement();
 }
 
@@ -342,11 +348,36 @@ void print_tokens(void)
 
 void parse_statement(void)
 {
+    object_s obj;
     access_list_s *list;
+    token_s *id;
+    check_s check;
     
     if(tok()->type == TOK_TYPE_ID) {
+        id = tok();
         list = parse_id();
-        parse_idfollow(list);
+        obj = parse_idfollow(list);
+        check = check_entry(list);
+        if(obj.type == TYPE_ARGLIST) {
+            if(check.lastfailed) {
+                function_check(check);
+            }
+            else {
+                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
+            }
+        }
+        else {
+            if(check.found) {
+                
+            }
+            else if(check.lastfailed) {
+                
+            }
+            else {
+                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
+            }
+        }
+        
         parse_statement();
     }
     else if(tok()->type == TOK_TYPE_EOF) {
@@ -472,7 +503,7 @@ void parse_index(access_list_s **acc)
 }
 
 
-void parse_idfollow(access_list_s *acc)
+object_s parse_idfollow(access_list_s *acc)
 {
     object_s obj;
     aggregate_s *agg;
@@ -481,6 +512,8 @@ void parse_idfollow(access_list_s *acc)
         case TOK_TYPE_OPENPAREN:
             next_tok();
             agg = parse_aggregate_list();
+            obj.agg = agg;
+            obj.type = TYPE_ARGLIST;
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -495,14 +528,15 @@ void parse_idfollow(access_list_s *acc)
             fprintf(stderr, "Syntax Error at line %d: Expected ( = or += but got: %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
+    return obj;
 }
 
-void parse_optfollow(access_list_s *acc)
+object_s parse_optfollow(access_list_s *acc)
 {
     switch(tok()->type) {
         case TOK_TYPE_ASSIGNOP:
         case TOK_TYPE_OPENPAREN:
-            parse_idfollow(acc);
+            return parse_idfollow(acc);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_OPENBRACE:
@@ -518,6 +552,7 @@ void parse_optfollow(access_list_s *acc)
             fprintf(stderr, "Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
+    return (object_s){.type = TYPE_NULL};
 }
 
 object_s parse_assignment(void)
@@ -536,8 +571,11 @@ object_s parse_assignment(void)
 
 exp_s parse_expression(void)
 {
+    int i;
     exp_s exp;
     access_list_s *acc;
+    check_s check;
+    object_s obj;
     
     exp.name = NULL;
     switch(tok()->type) {
@@ -556,7 +594,18 @@ exp_s parse_expression(void)
             break;
         case TOK_TYPE_ID:
             acc = parse_id();
-            parse_optfollow(acc);
+            
+        
+            obj = parse_optfollow(acc);
+            check = check_entry(acc);
+            if(check.found)
+                exp.obj = check.node->object;
+            else {
+                if(check.lastfailed) {
+                    //printf("failed at: %s\n", check.last->name);
+                }
+            }
+            
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
@@ -625,10 +674,17 @@ aggregate_s *parse_aggregate_list(void)
 
 void parse_aggregate_list_(aggregate_s *agg)
 {
+    exp_s exp;
+    
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
             next_tok();
-            parse_expression();
+            exp = parse_expression();
+            agg->tail->next = alloc(sizeof(*agg));
+            agg->tail = agg->tail->next;
+            agg->tail->exp = exp;
+            agg->tail->next = NULL;
+            agg->size++;
             parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
@@ -654,6 +710,52 @@ scope_s *make_scope(scope_s *parent, char *ident)
         parent->children[parent->nchildren-1] = s;
     }
     return s;
+}
+
+check_s check_entry(access_list_s *acc)
+{
+    int i;
+    access_list_s *iter;
+    scope_s *root = global;
+    check_s res;
+    
+    iter = acc;
+repeat:
+    for(i = 0; i < root->nchildren; i++) {
+        if(!strcmp(root->children[i]->ident, iter->name)) {
+            if(acc->next) {
+                root = root->children[i];
+                goto repeat;
+            }
+            else {
+                res.found = true;
+                res.lastfailed = false;
+                res.node = root->children[i];
+                return res;
+            }
+        }
+    }
+    if(!acc->next)
+        res.lastfailed = true;
+    else
+        res.lastfailed = false;
+    res.found = false;
+    res.node = root;
+    res.last = acc;
+    return res;
+}
+
+bool function_check(check_s check)
+{
+    int i;
+    char *str = check.last->name;
+    
+    for(i = 0; i < N_FUNCS; i++) {
+        if(!strcmp(funcs[i].name, str)) {
+            printf("check: %s\n", check.last->name);
+        }
+    }
+    return false;
 }
 
 void print_accesslist(access_list_s *list)
