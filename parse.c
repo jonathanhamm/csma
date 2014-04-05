@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -40,7 +41,8 @@ enum type_e
     TYPE_AGGREGATE,
     TYPE_NODE,
     TYPE_ARGLIST,
-    TYPE_NULL
+    TYPE_NULL,
+    TYPE_ANY
 };
 
 struct sym_record_s
@@ -121,6 +123,7 @@ struct func_s
 {
     char *name;
     type_e type;
+    void *(*func)(void *);
 };
 
 static token_s *head;
@@ -135,14 +138,24 @@ static char *source;
 static int source_fd;
 static struct stat fstats;
 
-#define N_FUNCS 4
+#define N_FUNCS 6
+
+enum funcs {
+    FNET_SEND,
+    FNET_NODE,
+    FNET_RAND,
+    FNET_SIZE,
+    FNET_KILL,
+    FNET_PRINT
+};
 
 static func_s funcs[] = {
     {"send", TYPE_NODE},
     {"node", TYPE_NULL},
     {"rand", TYPE_NULL},
     {"size", TYPE_AGGREGATE},
-    {"kill", TYPE_NODE}
+    {"kill", TYPE_NODE},
+    {"print", TYPE_ANY}
 };
 
 static void readfile(const char *name);
@@ -168,14 +181,26 @@ static void parse_aggregate_list_(aggregate_s *agg);
 
 static scope_s *make_scope(scope_s *parent, char *ident);
 static check_s check_entry(access_list_s *acc);
+static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
 static bool function_check(check_s check);
 
 static void print_accesslist(access_list_s *list);
+static void print_object(object_s obj);
 
 static char *strclone(char *str);
 
 void parse(const char *file)
 {
+
+    /* Link Language Functions */
+    funcs[FNET_SEND].func = net_send;
+    funcs[FNET_NODE].func = net_node;
+    funcs[FNET_RAND].func = net_rand;
+    funcs[FNET_SIZE].func = net_size;
+    funcs[FNET_KILL].func = net_kill;
+    funcs[FNET_PRINT].func = net_print;
+    
+    
     lex(file);
     tokcurr = head;
     global = make_scope(NULL, "_root");
@@ -368,10 +393,10 @@ void parse_statement(void)
         }
         else {
             if(check.found) {
-                
+                check.node->object= obj;
             }
             else if(check.lastfailed) {
-                
+                add_entry(global, list, obj);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
@@ -571,7 +596,6 @@ object_s parse_assignment(void)
 
 exp_s parse_expression(void)
 {
-    int i;
     exp_s exp;
     access_list_s *acc;
     check_s check;
@@ -605,7 +629,6 @@ exp_s parse_expression(void)
                     //printf("failed at: %s\n", check.last->name);
                 }
             }
-            
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
@@ -719,12 +742,26 @@ check_s check_entry(access_list_s *acc)
     scope_s *root = global;
     check_s res;
     
+    
     iter = acc;
 repeat:
     for(i = 0; i < root->nchildren; i++) {
-        if(!strcmp(root->children[i]->ident, iter->name)) {
+        if(iter->isindex) {
+            if(iter->islazy) {
+                
+            }
+            else {
+                if(iter->index == i) {
+                    root = root->children[i];
+                    acc = acc->next;
+                    goto repeat;
+                }
+            }
+        }
+        else if(!strcmp(root->children[i]->ident, iter->name)) {
             if(acc->next) {
                 root = root->children[i];
+                acc = acc->next;
                 goto repeat;
             }
             else {
@@ -745,6 +782,26 @@ repeat:
     return res;
 }
 
+void add_entry(scope_s *root, access_list_s *acc, object_s obj)
+{
+    int i;
+    scope_s *new;
+    
+    while(acc->next) {
+        for(i = 0; i < root->nchildren; i++) {
+            if(!strcmp(root->children[i]->ident, acc->name))
+                break;
+            
+        }
+        assert(i != root->nchildren);
+        acc = acc->next;
+        root = root->children[i];
+    }
+    new = make_scope(root, acc->name);
+    new->object = obj;
+}
+
+
 bool function_check(check_s check)
 {
     int i;
@@ -752,11 +809,55 @@ bool function_check(check_s check)
     
     for(i = 0; i < N_FUNCS; i++) {
         if(!strcmp(funcs[i].name, str)) {
-            printf("check: %s\n", check.last->name);
+            switch(funcs[i].type) {
+                case TYPE_NULL:
+                    if(check.node != global) {
+                        fprintf(stderr, "Cannot call function %s on object types.\n", str);
+                    }
+                    funcs[i].func(NULL);
+                    break;
+                case TYPE_ANY:
+                    break;
+                default:
+                    //if(funcs[i].type == check.last)
+
+                    break;
+            }
         }
     }
     return false;
 }
+
+void *net_send(void *arg)
+{
+    
+}
+
+void *net_node(void *arg)
+{
+    
+}
+
+void *net_rand(void *arg)
+{
+    printf("Calling Rand\n");
+}
+
+void *net_size(void *arg)
+{
+    
+}
+
+void *net_kill(void *arg)
+{
+    
+}
+
+void *net_print(void *arg)
+{
+    printf("Calling Print\n");
+}
+
 
 void print_accesslist(access_list_s *list)
 {
@@ -776,6 +877,36 @@ void print_accesslist(access_list_s *list)
     putchar('\n');
 }
 
+void print_object(object_s obj)
+{
+    aggnode_s *agg;
+    
+    switch(obj.type) {
+        case TYPE_INT:
+        case TYPE_REAL:
+        case TYPE_STRING:
+            printf("%s", obj.tok->lexeme);
+            break;
+        case TYPE_AGGREGATE:
+            printf("{ ");
+            for(agg = obj.agg->head; agg->next; agg = agg->next) {
+                print_object(agg->exp.obj);
+                printf(", ");
+            }
+            print_object(agg->exp.obj);
+            printf(" }");
+            break;
+        case TYPE_NODE:
+        case TYPE_ARGLIST:
+            
+        case TYPE_NULL:
+            printf("null");
+            break;
+        default:
+            printf("unknown");
+            break;
+    }
+}
 
 bool ident_add(char *key, int att)
 {
