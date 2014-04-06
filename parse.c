@@ -845,9 +845,7 @@ void *net_print(void *arg)
 {
     object_s *obj = arg;
     
-    /*for(args = obj->agg->head; args; args = args->next) {
-        print_object(args->exp.obj);
-    }*/
+    print_object(*obj);
     putchar('\n');
     return NULL;
 }
@@ -873,6 +871,7 @@ void print_accesslist(access_list_s *list)
 
 void print_object(object_s obj)
 {
+    int i;
     scope_s *agg = NULL;
     
     switch(obj.type) {
@@ -883,16 +882,12 @@ void print_object(object_s obj)
             break;
         case TYPE_AGGREGATE:
             printf("{ ");
-           /* if(obj.agg)
-                agg = obj.agg->head;
-            if(agg) {
-                while(agg->next) {
-                    print_object(agg->exp.obj);
-                    printf(", ");
-                    agg = agg->next;
+            if(obj.agg->nchildren) {
+                for(i = 0; i < obj.agg->nchildren-1; i++) {
+                    print_object(obj.agg->children[i]->object);
                 }
-                print_object(agg->exp.obj);
-            }*/
+                print_object(obj.agg->children[i]->object);
+            }
             printf(" }");
             break;
         case TYPE_NODE:

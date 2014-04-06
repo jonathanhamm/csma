@@ -33,6 +33,8 @@ a.x = 6
 
 rand()
 
+a = 5
+
 print("hello")
 print(a)
 
