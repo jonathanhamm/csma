@@ -21,6 +21,9 @@ a.send("hello world")
 
 #a.send("hello world")
 
+
+a.send("hello world")
+
 print("hey")
 
 group = {a.bob, a.omg}
@@ -34,4 +37,3 @@ print("hello")
 print(a)
 
 #a.bob.send("hello world")
-
