@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdint.h>
 
 #include <sys/stat.h>
 #include <sys/mman.h>
