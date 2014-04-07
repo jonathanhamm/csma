@@ -67,7 +67,7 @@ struct object_s
 
 struct exp_s
 {
-    char *name;
+    access_list_s *acc;
     object_s obj;
 };
 
@@ -518,7 +518,6 @@ void parse_index(access_list_s **acc)
     }
 }
 
-
 optfollow_s parse_idfollow(access_list_s *acc)
 {
     optfollow_s opt;
@@ -594,7 +593,7 @@ exp_s parse_expression(void)
     check_s check;
     optfollow_s opt;
     
-    exp.name = "_anonymous";
+    exp.acc = NULL;
     switch(tok()->type) {
         case TOK_TYPE_NUM:
             exp.obj.tok = tok();
@@ -613,11 +612,17 @@ exp_s parse_expression(void)
             acc = parse_id();
             opt = parse_optfollow(acc);
             check = check_entry(acc);
-            if(check.found) {
-                exp.obj = check.node->object;
+            if(opt.isassign) {
+                exp.acc = acc;
+                exp.obj = opt.obj;
             }
             else {
-                printf("Access to undeclared identifier: %s\n", check.last->name);
+                if(check.found) {
+                    exp.obj = check.node->object;
+                }
+                else {
+                    printf("Access to undeclared identifier: %s\n", check.last->name);
+                }
             }
             break;
         case TOK_TYPE_OPENBRACE:
@@ -666,8 +671,10 @@ scope_s *parse_aggregate_list(void)
             agg = alloc(sizeof(*agg));
             agg->parent = NULL;
             agg->children = alloc(sizeof(*agg));
-            agg->children[0] = make_scope(agg, exp.name);
             agg->nchildren = 1;
+            if(exp.acc) {
+                puts("Assignment within initializer");
+            }
             parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
@@ -693,7 +700,10 @@ void parse_aggregate_list_(scope_s *agg)
             next_tok();
             exp = parse_expression();
             agg->children = alloc(sizeof(*agg));
-            agg->children[0] = make_scope(agg, exp.name);
+            //agg->children[0] = make_scope(agg, exp.name);
+            if(exp.acc) {
+                puts("Assignment within initializer");
+            }
             agg->nchildren = 1;
             parse_aggregate_list_(agg);
             break;
@@ -892,7 +902,7 @@ void print_object(object_s obj)
             break;
         case TYPE_NODE:
         case TYPE_ARGLIST:
-            
+            break;
         case TYPE_NULL:
             printf("null");
             break;

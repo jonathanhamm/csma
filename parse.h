@@ -8,6 +8,8 @@ typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
 typedef enum tok_att_s tok_att_s;
 
+typedef struct event_s event_s;
+
 enum tok_types_e {
     TOK_TYPE_ID = 0,
     TOK_TYPE_DOT = 1,
@@ -47,6 +49,13 @@ struct token_s
     int lineno;
     token_s *next;
     token_s *prev;
+};
+
+struct event_s
+{
+    event_s *next;
+    char *src, *dst;
+    
 };
 
 extern void parse(const char *file);
