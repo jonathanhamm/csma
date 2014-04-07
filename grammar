@@ -1,102 +1,41 @@
 
 <statement>->
-    <expression> <idfollow> <statement> | ε
-
+    <id> <idfollow> <statement> | ε
 
 <id> ->
     id <index> <idsuffix>
-    {
-        <id>.val := accesslist()
-        <index>.in := <id>.val
-        <idsuffix>.in := <id>.val
-    }
 
 <idsuffix> ->
-        . id <index> <idsuffix>
-        {
-            <idsuffix>.in.add(id.val)
-            <index>.in := <idsuffix>.in
-            <idsuffix>[1].in := <idsuffix>.in
-        }
-        |
-        ε
+    . id <index> <idsuffix> | ε
 
 <index> ->
-    [ <expression> ] <index> 
-    {
-        <index>.in.add(<expression>.val)
-        <index>[1].in := <index>.in
-    }
-    |
-    ε
+    [ <expression> ] <index> | ε
 
 <idfollow>->
     ( <aggregate_list> )
-    {
-        <idfollow>.op := call
-        <idfollow>.type := <aggregate_list>.type
-        <idfollow>.val := <aggregate_list>.val
-    }
     |
     <assignment>
-    {
-        <idfollow>.op := <assign>.op
-        <idfollow>.type := <assigment>.type
-        <assignment>.val := <assignment>.val
-    }
 
 <optfollow>->
-    <idfollow> 
-    {
-        <optfollow>.op := <idfollow>.op
-        <opfollow>.type := <idfollow>.type
-        <optfollow>.val := <idfollow>.val
-    }
-    | 
-    ε
-
+    <idfollow> | ε
 
 <assignment> ->
-            assignop <expression>
-            {
-                <assignment>.op := assignop.op
-                <assignment>.type := <expression>.type
-                <assignment>.type := <expression>.val
-
-            }
-
+    assignop <expression>
 
 <expression> ->
-            num 
-            {
-                <expression>.type = num.type
-                <expression>.val = num.val
-            }
-            | 
-            string
-            {
-                <expression>.type = string.type
-                <expression>.val = string.val
-            }
-            | 
-            <id> <optfollow>
-            {
-                if <optfollow>.type <> null then
-                    <expression>.type := <optfollow>.type
-                    
-                else
-                    <expression>.type := <id>.type
-                endif
-            }
-            | 
-            <aggregate>
+    num
+    |
+    string
+    |
+    <id> <optfollow>
+    |
+    <aggregate>
 
 <aggregate> -> 
-            { <aggregate_list> }
+    { <aggregate_list> }
 
 <aggregate_list> -> 
-            <expression>  <aggregate_list'> | ε
+    <expression>  <aggregate_list'> | ε
 
 <aggregate_list'> ->
-            , <expression> <aggregate_list'> | ε
-
+    , <expression> <aggregate_list'> | ε

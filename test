@@ -1,10 +1,21 @@
 #Node Declarations
 
 a = {
-        bob = node("bob"),
-        derp = node("derp"),
-        omg = node("hahah")
+    bob = node("bob"),
+    derp = node("derp"),
+    omg = node("hahah"),
+    omg = 10,
+    lol = {
+        bob = node("wahaha"),
+        woah = node(32)
     }
+}
+
+message1 = "hello world"
+message2 = "goodbye world"
+
+
+a.send("b", message1)
 
 #############################################
 #   Node Commands

@@ -171,7 +171,7 @@ static scope_s *parse_aggregate_list(void);
 static void parse_aggregate_list_(scope_s *agg);
 
 static scope_s *make_scope(scope_s *parent, char *ident);
-static check_s check_entry(access_list_s *acc);
+static check_s check_entry(scope_s *root, access_list_s *acc);
 static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
 static bool function_check(check_s check, object_s args);
 
@@ -373,7 +373,7 @@ void parse_statement(void)
         id = tok();
         list = parse_id();
         opt = parse_idfollow(list);
-        check = check_entry(list);
+        check = check_entry(global, list);
         if(opt.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
                 function_check(check, opt.obj);
@@ -611,12 +611,12 @@ exp_s parse_expression(void)
         case TOK_TYPE_ID:
             acc = parse_id();
             opt = parse_optfollow(acc);
-            check = check_entry(acc);
             if(opt.isassign) {
                 exp.acc = acc;
                 exp.obj = opt.obj;
             }
             else {
+                check = check_entry(global, acc);
                 if(check.found) {
                     exp.obj = check.node->object;
                 }
@@ -673,7 +673,10 @@ scope_s *parse_aggregate_list(void)
             agg->children = alloc(sizeof(*agg));
             agg->nchildren = 1;
             if(exp.acc) {
-                puts("Assignment within initializer");
+                if(!exp.acc->next) {
+                    //puts("Single assignment within initializer");
+                    add_entry(agg, exp.acc, exp.obj);
+                }
             }
             parse_aggregate_list_(agg);
             break;
@@ -694,15 +697,23 @@ scope_s *parse_aggregate_list(void)
 void parse_aggregate_list_(scope_s *agg)
 {
     exp_s exp;
+    check_s check;
     
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
             next_tok();
             exp = parse_expression();
             agg->children = alloc(sizeof(*agg));
-            //agg->children[0] = make_scope(agg, exp.name);
             if(exp.acc) {
-                puts("Assignment within initializer");
+                if(!exp.acc->next) {
+                    //puts("Single assignment within initializer");
+                    check = check_entry(agg, exp.acc);
+                    if(check.found) {
+                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s\n", exp.acc->name);
+                    }
+                    else
+                        add_entry(agg, exp.acc, exp.obj);
+                }
             }
             agg->nchildren = 1;
             parse_aggregate_list_(agg);
@@ -726,19 +737,20 @@ scope_s *make_scope(scope_s *parent, char *ident)
     s->ident = ident;
     if(parent) {
         parent->nchildren++;
-        parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
+        if(parent->children)
+            parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
+        else
+            parent->children = alloc(sizeof(*parent->children));
         parent->children[parent->nchildren-1] = s;
     }
     return s;
 }
 
-check_s check_entry(access_list_s *acc)
+check_s check_entry(scope_s *root, access_list_s *acc)
 {
     int i;
     access_list_s *iter;
-    scope_s *root = global;
     check_s res;
-    
     
     iter = acc;
 repeat:
@@ -796,8 +808,12 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
     }
     new = make_scope(root, acc->name);
     new->object = obj;
-}
+    
+    if(!(!root->nchildren || (root->nchildren && root->children && root->children[0]))) {
+        asm("hlt");
+    }
 
+}
 
 bool function_check(check_s check, object_s args)
 {
