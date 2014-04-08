@@ -810,7 +810,7 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
     new->object = obj;
     
     if(!(!root->nchildren || (root->nchildren && root->children && root->children[0]))) {
-        asm("hlt");
+        //asm("hlt");
     }
 
 }
