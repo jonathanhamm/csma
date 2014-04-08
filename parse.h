@@ -75,6 +75,7 @@ extern void *net_rand(void *);
 extern void *net_size(void *);
 extern void *net_kill(void *);
 extern void *net_print(void *);
+extern void *net_clear(void *);
 
 
 #endif

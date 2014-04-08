@@ -37,7 +37,6 @@ enum type_e
     TYPE_INT,
     TYPE_REAL,
     TYPE_STRING,
-    TYPE_AGGREGATE,
     TYPE_NODE,
     TYPE_ARGLIST,
     TYPE_NULL,
@@ -145,7 +144,7 @@ static func_s funcs[] = {
     {"send", TYPE_NODE},
     {"node", TYPE_NULL},
     {"rand", TYPE_NULL},
-    {"size", TYPE_AGGREGATE},
+    {"size", TYPE_ANY},
     {"kill", TYPE_NODE},
     {"print", TYPE_ANY}
 };
@@ -177,7 +176,9 @@ static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
 static bool function_check(check_s check, object_s args);
 
 static void print_accesslist(access_list_s *list);
-static void print_object(object_s obj);
+static void print_object(scope_s *root);
+
+static void clear_scope(scope_s *root);
 
 static char *strclone(char *str);
 
@@ -488,9 +489,6 @@ void parse_index(access_list_s **acc)
                         case TYPE_STRING:
                             puts("string type.");
                             break;
-                        case TYPE_AGGREGATE:
-                            puts("aggregate type.");
-                            break;
                         default:
                             puts("unknown type.");
                             break;
@@ -590,7 +588,7 @@ object_s parse_assignment(void)
 exp_s parse_expression(void)
 {
     exp_s exp;
-    access_list_s *acc;
+    access_list_s *acc, *accb;
     check_s check;
     optfollow_s opt;
     
@@ -624,12 +622,17 @@ exp_s parse_expression(void)
                 else {
                     printf("Access to undeclared identifier: %s\n", check.last->name);
                 }
+                while(acc) {
+                    accb = acc->next;
+                    free(acc);
+                    acc = accb;
+                }
             }
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
             exp.obj.agg = parse_aggregate();
-            exp.obj.type = TYPE_AGGREGATE;
+            exp.obj.type = TYPE_ANY;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
@@ -856,11 +859,15 @@ void *net_kill(void *arg)
     
 }
 
+void *net_clear(void *arg)
+{
+    clear_scope(global);
+}
+
+
 void *net_print(void *arg)
 {
-    object_s *obj = arg;
-    
-    print_object(*obj);
+    print_object(arg);
     putchar('\n');
     return NULL;
 }
@@ -884,37 +891,52 @@ void print_accesslist(access_list_s *list)
     putchar('\n');
 }
 
-void print_object(object_s obj)
+void print_object(scope_s *root)
 {
     int i;
-    scope_s *agg = NULL;
+    object_s *optr;
     
-    switch(obj.type) {
-        case TYPE_INT:
-        case TYPE_REAL:
-        case TYPE_STRING:
-            printf("%s", obj.tok->lexeme);
-            break;
-        case TYPE_AGGREGATE:
-            printf("{ ");
-            if(obj.agg->nchildren) {
-                for(i = 0; i < obj.agg->nchildren-1; i++) {
-                    print_object(obj.agg->children[i]->object);
-                }
-                print_object(obj.agg->children[i]->object);
-            }
-            printf(" }");
-            break;
-        case TYPE_NODE:
-        case TYPE_ARGLIST:
-            break;
-        case TYPE_NULL:
-            printf("null");
-            break;
-        default:
-            printf("unknown");
-            break;
+    for(i = 0; i < root->nchildren; i++) {
+        
+        if(root->children[i]->nchildren) {
+            puts("{ ");
+            print_object(root->children[i]);
+            puts(" }");
+            continue;
+        }
+        
+        optr = &root->children[i]->object;
+        switch(optr->type) {
+            case TYPE_INT:
+            case TYPE_REAL:
+            case TYPE_STRING:
+                printf("%s", optr->tok->lexeme);
+                break;
+            case TYPE_NODE:
+                break;
+            case TYPE_ARGLIST:
+                puts("is arglist");
+                break;
+            case TYPE_NULL:
+                printf("null");
+                break;
+            default:
+                printf("unknown");
+                break;
+        }
     }
+}
+
+void clear_scope(scope_s *root)
+{
+    int i;
+    
+    for(i = 0; i < root->nchildren; i++) {
+        if(root->children[i]->nchildren)
+            clear_scope(root->children[i]);
+        free(root->children[i]);
+    }
+    free(root->children);
 }
 
 bool ident_add(char *key, int att)
