@@ -671,7 +671,7 @@ scope_s *parse_aggregate_list(void)
             exp = parse_expression();
             agg = alloc(sizeof(*agg));
             agg->parent = NULL;
-            agg->children = alloc(sizeof(*agg));
+            agg->children = alloc(sizeof(*agg->children));
             agg->nchildren = 1;
             if(exp.acc) {
                 if(!exp.acc->next) {
@@ -704,7 +704,6 @@ void parse_aggregate_list_(scope_s *agg)
         case TOK_TYPE_COMMA:
             next_tok();
             exp = parse_expression();
-            agg->children = alloc(sizeof(*agg));
             if(exp.acc) {
                 if(!exp.acc->next) {
                     //puts("Single assignment within initializer");
