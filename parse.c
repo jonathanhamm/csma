@@ -431,7 +431,7 @@ void parse_idsuffix(access_list_s **acc)
     switch(tok()->type) {
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
-                (*acc)->next = alloc(sizeof(**acc));
+                (*acc)->next = allocz(sizeof(**acc));
                 *acc = (*acc)->next;
                 (*acc)->name = tok()->lexeme;
                 (*acc)->isindex = false;
