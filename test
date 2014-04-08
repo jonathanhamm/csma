@@ -7,8 +7,11 @@ a = {
     omg = 10,
     lol = {
         bob = node("wahaha"),
-        woah = node(32)
-    }
+        woah = node(32),
+        omg = node(wut)
+    }, 
+    derp = 32, 
+    32,32
 }
 
 message1 = "hello world"

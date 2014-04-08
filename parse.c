@@ -671,8 +671,7 @@ scope_s *parse_aggregate_list(void)
             exp = parse_expression();
             agg = alloc(sizeof(*agg));
             agg->parent = NULL;
-            agg->children = alloc(sizeof(*agg->children));
-            agg->nchildren = 1;
+            agg->ident = "_anonymous";
             if(exp.acc) {
                 if(!exp.acc->next) {
                     //puts("Single assignment within initializer");
@@ -683,10 +682,6 @@ scope_s *parse_aggregate_list(void)
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
-            agg = alloc(sizeof(*agg));
-            agg->parent = NULL;
-            agg->ident = "_anonymous";
-            agg->nchildren = 0;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
@@ -699,23 +694,22 @@ void parse_aggregate_list_(scope_s *agg)
 {
     exp_s exp;
     check_s check;
+    token_s *t;
     
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
-            next_tok();
+            t = next_tok();
             exp = parse_expression();
             if(exp.acc) {
                 if(!exp.acc->next) {
-                    //puts("Single assignment within initializer");
                     check = check_entry(agg, exp.acc);
                     if(check.found) {
-                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s\n", exp.acc->name);
+                        fprintf(stderr, "Error near line %u: Redeclaration of aggregate member: %s\n", t->lineno, exp.acc->name);
                     }
                     else
                         add_entry(agg, exp.acc, exp.obj);
                 }
             }
-            agg->nchildren = 1;
             parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
@@ -737,7 +731,7 @@ scope_s *make_scope(scope_s *parent, char *ident)
     s->ident = ident;
     if(parent) {
         parent->nchildren++;
-        if(parent->children)
+        if(parent->nchildren)
             parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
         else
             parent->children = alloc(sizeof(*parent->children));
@@ -808,11 +802,6 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
     }
     new = make_scope(root, acc->name);
     new->object = obj;
-    
-    if(!(!root->nchildren || (root->nchildren && root->children && root->children[0]))) {
-        //asm("hlt");
-    }
-
 }
 
 bool function_check(check_s check, object_s args)
