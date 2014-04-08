@@ -672,9 +672,7 @@ scope_s *parse_aggregate_list(void)
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
             exp = parse_expression();
-            agg = alloc(sizeof(*agg));
-            agg->parent = NULL;
-            agg->ident = "_anonymous";
+            agg = make_scope(NULL, "_anonymous");
             if(exp.acc) {
                 if(!exp.acc->next) {
                     //puts("Single assignment within initializer");
