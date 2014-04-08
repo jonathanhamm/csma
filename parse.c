@@ -173,12 +173,13 @@ static void parse_aggregate_list_(scope_s *agg);
 static scope_s *make_scope(scope_s *parent, char *ident);
 static check_s check_entry(scope_s *root, access_list_s *acc);
 static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
-static bool function_check(check_s check, object_s args);
+static bool function_check(check_s check, scope_s *args);
 
 static void print_accesslist(access_list_s *list);
 static void print_object(scope_s *root);
 
 static void clear_scope(scope_s *root);
+static void free_accesslist(access_list_s *l);
 
 static char *strclone(char *str);
 
@@ -378,7 +379,7 @@ void parse_statement(void)
         check = check_entry(global, list);
         if(opt.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check, opt.obj);
+                function_check(check, opt.obj.agg);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
@@ -431,7 +432,7 @@ void parse_idsuffix(access_list_s **acc)
     switch(tok()->type) {
         case TOK_TYPE_DOT:
             if(next_tok()->type == TOK_TYPE_ID) {
-                (*acc)->next = allocz(sizeof(**acc));
+                (*acc)->next = alloc(sizeof(**acc));
                 *acc = (*acc)->next;
                 (*acc)->name = tok()->lexeme;
                 (*acc)->isindex = false;
@@ -622,12 +623,8 @@ exp_s parse_expression(void)
                 else {
                     printf("Access to undeclared identifier: %s\n", check.last->name);
                 }
-                while(acc) {
-                    accb = acc->next;
-                    free(acc);
-                    acc = accb;
-                }
             }
+            free_accesslist(acc);
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
@@ -805,7 +802,7 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
     new->object = obj;
 }
 
-bool function_check(check_s check, object_s args)
+bool function_check(check_s check, scope_s *args)
 {
     int i;
     char *str = check.last->name;
@@ -820,7 +817,7 @@ bool function_check(check_s check, object_s args)
                     funcs[i].func(NULL);
                     break;
                 case TYPE_ANY:
-                    funcs[i].func(&args);
+                    funcs[i].func(args);
                     break;
                 default:
                     //if(funcs[i].type == check.last)
@@ -936,6 +933,18 @@ void clear_scope(scope_s *root)
     }
     free(root->children);
 }
+
+void free_accesslist(access_list_s *l)
+{
+    access_list_s *lb;
+    
+    while(l) {
+        lb = l->next;
+        free(l);
+        l = lb;
+    }
+}
+
 
 bool ident_add(char *key, int att)
 {
