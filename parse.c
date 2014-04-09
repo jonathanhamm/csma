@@ -14,6 +14,7 @@
 
 #define INIT_BUF_SIZE 256
 #define SYM_TABLE_SIZE 53
+#define N_FUNCS 6
 
 #define next_tok() (tokcurr = tokcurr->next)
 #define tok() (tokcurr)
@@ -26,11 +27,19 @@ typedef struct object_s object_s;
 typedef struct exp_s exp_s;
 typedef struct scope_s scope_s;
 typedef struct access_list_s access_list_s;
-typedef struct check_s check_s;
 typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
+typedef struct check_s check_s;
 
+enum funcs {
+    FNET_SEND,
+    FNET_NODE,
+    FNET_RAND,
+    FNET_SIZE,
+    FNET_KILL,
+    FNET_PRINT
+};
 
 enum type_e
 {
@@ -39,14 +48,15 @@ enum type_e
     TYPE_STRING,
     TYPE_NODE,
     TYPE_ARGLIST,
+    TYPE_AGGREGATE,
     TYPE_NULL,
     TYPE_ANY
 };
 
 struct sym_record_s
 {
-    int att;
-    char *string;
+    char *key;
+    void *object;
     sym_record_s *next;
 };
 
@@ -59,7 +69,7 @@ struct object_s
 {
     union {
         token_s *tok;
-        scope_s *agg;
+        scope_s *child;
     };
     type_e type;
     bool islazy;
@@ -73,12 +83,11 @@ struct exp_s
 
 struct scope_s
 {
-    sym_table_s table;
-    char *ident;
+    char *id;
+    int size;
     scope_s *parent;
-    scope_s **children;
-    object_s object;
-    int nchildren;
+    sym_table_s table;
+    object_s **object;
 };
 
 struct access_list_s
@@ -88,14 +97,6 @@ struct access_list_s
     char *name;
     bool islazy;
     access_list_s *next;
-};
-
-struct check_s
-{
-    bool found;
-    bool lastfailed;
-    access_list_s *last;
-    scope_s *node;
 };
 
 struct params_s
@@ -117,28 +118,23 @@ struct optfollow_s
     object_s obj;
 };
 
+struct check_s
+{
+    bool found;
+    bool lastfailed;
+    access_list_s *last;
+    object_s *result;
+};
+
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
 
-static sym_table_s symtable;
-
-static scope_s *global;
+static scope_s *scope_root;
 
 static char *source;
 static int source_fd;
 static struct stat fstats;
-
-#define N_FUNCS 6
-
-enum funcs {
-    FNET_SEND,
-    FNET_NODE,
-    FNET_RAND,
-    FNET_SIZE,
-    FNET_KILL,
-    FNET_PRINT
-};
 
 static func_s funcs[] = {
     {"send", TYPE_NODE},
@@ -154,8 +150,8 @@ static void lex(const char *name);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
 
-static bool ident_add(char *key, int att);
-static sym_record_s *ident_lookup(char *key);
+static void sym_insert(sym_table_s *table, char *key, void *object);
+static sym_record_s *sym_lookup(sym_table_s *table, char *key);
 static uint16_t hash_pjw(char *key);
 
 static void parse_statement(void);
@@ -170,10 +166,12 @@ static scope_s *parse_aggregate(void);
 static scope_s *parse_aggregate_list(void);
 static void parse_aggregate_list_(scope_s *agg);
 
-static scope_s *make_scope(scope_s *parent, char *ident);
+static scope_s *make_scope(scope_s *parent, char *id);
+static void scope_add(scope_s *scope, object_s obj, char *id);
 static check_s check_entry(scope_s *root, access_list_s *acc);
-static void add_entry(scope_s *root, access_list_s *acc, object_s obj);
+
 static bool function_check(check_s check, scope_s *args);
+
 
 static void print_accesslist(access_list_s *list);
 static void print_object(scope_s *root);
@@ -194,17 +192,15 @@ void parse(const char *file)
     funcs[FNET_KILL].func = net_kill;
     funcs[FNET_PRINT].func = net_print;
     
-    
     lex(file);
     tokcurr = head;
-    global = make_scope(NULL, "_root");
+    scope_root = make_scope(NULL, "_root");
     parse_statement();
 }
 
 void lex(const char *name)
 {
-    int idcounter = 1, lineno = 1;;
-    sym_record_s *rec;
+    int lineno = 1;
     char *bptr, *fptr, c;
     
     readfile(name);
@@ -292,18 +288,10 @@ void lex(const char *name)
                     while(isalnum(*++fptr));
                     c = *fptr;
                     *fptr = '\0';
-                    rec = ident_lookup(bptr);
-                    if(rec)
-                        add_token(bptr, TOK_TYPE_ID, rec->att, lineno);
-                    else {
-                        if(!strcmp(bptr, "inf"))
-                            add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INF, lineno);
-                        else {
-                            ident_add(strclone(bptr), idcounter);
-                            add_token(bptr, TOK_TYPE_ID, idcounter, lineno);
-                            idcounter++;
-                        }
-                    }
+                    if(!strcmp(bptr, "inf"))
+                        add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INF, lineno);
+                    else
+                        add_token(bptr, TOK_TYPE_ID, TOK_ATT_DEFAULT, lineno);
                     *fptr = c;
                 }
                 else if(isdigit(*fptr)) {
@@ -332,7 +320,6 @@ void lex(const char *name)
     add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT, lineno);
     munmap(source, fstats.st_size);
     close(source_fd);
-    //print_tokens();
 }
 
 void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
@@ -376,10 +363,11 @@ void parse_statement(void)
         id = tok();
         list = parse_id();
         opt = parse_idfollow(list);
-        check = check_entry(global, list);
+        check = check_entry(scope_root, list);
+        
         if(opt.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check, opt.obj.agg);
+                function_check(check, opt.obj.child);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
@@ -629,7 +617,7 @@ exp_s parse_expression(void)
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
             exp.obj.agg = parse_aggregate();
-            exp.obj.type = TYPE_ANY;
+            exp.obj.type = TYPE_AGGREGATE;
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
@@ -669,17 +657,24 @@ scope_s *parse_aggregate_list(void)
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
             exp = parse_expression();
-            agg = make_scope(NULL, "_anonymous");
-            if(exp.acc) {
-                if(!exp.acc->next) {
-                    //puts("Single assignment within initializer");
-                    add_entry(agg, exp.acc, exp.obj);
+            if(exp.obj.agg) {
+                agg = exp.obj.agg;
+            }
+            else {
+                agg = make_scope(NULL, "_anonymous");
+                if(exp.acc) {
+                    if(!exp.acc->next) {
+                        add_entry(agg, exp.acc, exp.obj);
+                    }
                 }
+                else
+                    add_entry(agg, NULL, exp.obj);
             }
             parse_aggregate_list_(agg);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
+            agg = make_scope(NULL, "_anonymous");
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
@@ -704,9 +699,13 @@ void parse_aggregate_list_(scope_s *agg)
                     if(check.found) {
                         fprintf(stderr, "Error near line %u: Redeclaration of aggregate member: %s\n", t->lineno, exp.acc->name);
                     }
-                    else
+                    else {
                         add_entry(agg, exp.acc, exp.obj);
+                    }
                 }
+            }
+            else {
+                add_entry(agg, exp.acc, exp.obj);
             }
             parse_aggregate_list_(agg);
             break;
@@ -719,6 +718,87 @@ void parse_aggregate_list_(scope_s *agg)
     }
 }
 
+scope_s *make_scope(scope_s *parent, char *id)
+{
+    object_s obj;
+    scope_s *s = allocz(sizeof(*s));
+    
+    s->id = id;
+    s->size = 0;
+    s->object = NULL;
+    if(parent) {
+        s->parent = parent;
+        obj.type = TYPE_AGGREGATE;
+        obj.child = s;
+        obj.islazy = false;
+        scope_add(parent, obj, id);
+    }
+    return s;
+}
+
+void scope_add(scope_s *scope, object_s obj, char *id)
+{
+    object_s *obj_alloc;
+    
+    scope->object = ralloc(scope->object, (scope->size + 1)*sizeof(*scope->object));
+    obj_alloc = alloc(sizeof(obj));
+    
+    *obj_alloc = obj;
+    scope->object[scope->size] = obj_alloc;
+    scope->size++;
+    
+    if(id)
+        sym_insert(&scope->table, id, obj_alloc);
+}
+
+check_s check_entry(scope_s *root, access_list_s *acc)
+{
+    sym_record_s *rec;
+    check_s check;
+    
+    while(true) {
+        if(acc->isindex) {
+            if(acc->index >= root->size) {
+                check.found = false;
+                check.last = acc;
+                check.result = NULL;
+                check.lastfailed = false;
+                return check;
+            }
+            check.result = root->object[acc->index];
+        }
+        else {
+            rec = sym_lookup(&root->table, acc->name);
+            if(rec)
+                check.result = rec->object;
+            else {
+                check.found = false;
+                check.last = acc;
+                check.result = NULL;
+                if(!acc->next)
+                    check.lastfailed = true;
+                return check;
+            }
+        }
+        if(acc->next) {
+            if(check.result->type == TYPE_AGGREGATE) {
+                acc = acc->next;
+                root = check.result->child;
+            }
+            else {
+                check.found = false;
+                check.last = acc;
+                check.result = NULL;
+                if(!acc->next)
+                    check.lastfailed = true;
+                return check;
+            }
+        }
+     }
+}
+
+
+/*
 scope_s *make_scope(scope_s *parent, char *ident)
 {
     scope_s *s = alloc(sizeof(*s));
@@ -727,16 +807,21 @@ scope_s *make_scope(scope_s *parent, char *ident)
     s->nchildren = 0;
     s->parent = parent;
     s->ident = ident;
-    if(parent) {
-        parent->nchildren++;
-        if(parent->nchildren)
-            parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
-        else
-            parent->children = alloc(sizeof(*parent->children));
-        parent->children[parent->nchildren-1] = s;
-    }
+    if(parent)
+        attach_child(parent, s);
     return s;
 }
+
+void attach_child(scope_s *parent, scope_s *child)
+{
+    parent->nchildren++;
+    if(parent->children)
+        parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
+    else
+        parent->children = alloc(sizeof(*parent->children));
+    parent->children[parent->nchildren-1] = child;
+}
+
 
 check_s check_entry(scope_s *root, access_list_s *acc)
 {
@@ -788,19 +873,24 @@ void add_entry(scope_s *root, access_list_s *acc, object_s obj)
     int i;
     scope_s *new;
     
-    while(acc->next) {
-        for(i = 0; i < root->nchildren; i++) {
-            if(!strcmp(root->children[i]->ident, acc->name))
-                break;
-            
+    if(acc) {
+        while(acc->next) {
+            for(i = 0; i < root->nchildren; i++) {
+                if(!strcmp(root->children[i]->ident, acc->name))
+                    break;
+            }
+            assert(i != root->nchildren);
+            acc = acc->next;
+            root = root->children[i];
         }
-        assert(i != root->nchildren);
-        acc = acc->next;
-        root = root->children[i];
+        new = make_scope(root, acc->name);
     }
-    new = make_scope(root, acc->name);
+    else {
+        new = make_scope(root, "_anonymous");
+    }
     new->object = obj;
 }
+*/
 
 bool function_check(check_s check, scope_s *args)
 {
@@ -889,50 +979,11 @@ void print_accesslist(access_list_s *list)
 void print_object(scope_s *root)
 {
     int i;
+    char *c;
     object_s *optr;
     
-    for(i = 0; i < root->nchildren; i++) {
-        
-        if(root->children[i]->nchildren) {
-            puts("{ ");
-            print_object(root->children[i]);
-            puts(" }");
-            continue;
-        }
-        
-        optr = &root->children[i]->object;
-        switch(optr->type) {
-            case TYPE_INT:
-            case TYPE_REAL:
-            case TYPE_STRING:
-                printf("%s", optr->tok->lexeme);
-                break;
-            case TYPE_NODE:
-                break;
-            case TYPE_ARGLIST:
-                puts("is arglist");
-                break;
-            case TYPE_NULL:
-                printf("null");
-                break;
-            default:
-                printf("unknown");
-                break;
-        }
-    }
 }
 
-void clear_scope(scope_s *root)
-{
-    int i;
-    
-    for(i = 0; i < root->nchildren; i++) {
-        if(root->children[i]->nchildren)
-            clear_scope(root->children[i]);
-        free(root->children[i]);
-    }
-    free(root->children);
-}
 
 void free_accesslist(access_list_s *l)
 {
@@ -945,39 +996,25 @@ void free_accesslist(access_list_s *l)
     }
 }
 
-
-bool ident_add(char *key, int att)
+void sym_insert(sym_table_s *table, char *key, void *object)
 {
     uint16_t index = hash_pjw(key);
-    sym_record_s *rec = symtable.table[index];
+    sym_record_s *rec = alloc(sizeof(*rec));
     
-    if(rec) {
-        while(rec->next) {
-            if(!strcmp(rec->string, key))
-                return false;
-            rec = rec->next;
-        }
-        if(!strcmp(rec->string, key))
-            return false;
-        rec->next = alloc(sizeof(*rec));
-        rec = rec->next;
-    }
-    else {
-        rec = alloc(sizeof(*rec));
-        symtable.table[index] = rec;
-    }
-    rec->string = key;
-    rec->att = att;
+    rec->next = table->table[index];
+    table->table[index] = rec;
+    rec->key = key;
+    rec->object = object;
     rec->next = NULL;
-    return true;
+    return false;
 }
 
-sym_record_s *ident_lookup(char *key)
+sym_record_s *sym_lookup(sym_table_s *table, char *key)
 {
-    sym_record_s *rec = symtable.table[hash_pjw(key)];
+    sym_record_s *rec = table->table[hash_pjw(key)];
     
     while(rec) {
-        if(!strcmp(rec->string, key))
+        if(!strcmp(rec->key, key))
             return rec;
         rec = rec->next;
     }
@@ -1020,7 +1057,7 @@ void readfile(const char *name)
 
 buf_s *buf_init(void)
 {
-    buf_s *b = malloc(sizeof(*b) + INIT_BUF_SIZE);
+    buf_s *b = alloc(sizeof(*b) + INIT_BUF_SIZE);
     b->bsize = INIT_BUF_SIZE;
     b->size = 0;
     return b;
