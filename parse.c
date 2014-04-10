@@ -45,6 +45,7 @@ enum type_e
 {
     TYPE_INT,
     TYPE_REAL,
+    TYPE_INF,
     TYPE_STRING,
     TYPE_NODE,
     TYPE_ARGLIST,
@@ -94,7 +95,7 @@ struct access_list_s
 {
     bool isindex;
     int index;
-    char *name;
+    token_s *tok;
     bool islazy;
     access_list_s *next;
 };
@@ -124,6 +125,7 @@ struct check_s
     bool lastfailed;
     access_list_s *last;
     object_s *result;
+    scope_s *scope;
 };
 
 static token_s *head;
@@ -162,9 +164,9 @@ static optfollow_s parse_idfollow(access_list_s *acc);
 static optfollow_s parse_optfollow(access_list_s *acc);
 static object_s parse_assignment(void);
 static exp_s parse_expression(void);
-static scope_s *parse_aggregate(void);
-static scope_s *parse_aggregate_list(void);
-static void parse_aggregate_list_(scope_s *agg);
+static void parse_aggregate(object_s *obj);
+static void parse_aggregate_list(object_s *obj);
+static void parse_aggregate_list_(object_s *obj);
 
 static scope_s *make_scope(scope_s *parent, char *id);
 static void scope_add(scope_s *scope, object_s obj, char *id);
@@ -360,7 +362,7 @@ void parse_statement(void)
     optfollow_s opt;
     
     if(tok()->type == TOK_TYPE_ID) {
-        id = tok();
+        opt.obj.tok = id = tok();
         list = parse_id();
         opt = parse_idfollow(list);
         check = check_entry(scope_root, list);
@@ -370,18 +372,18 @@ void parse_statement(void)
                 function_check(check, opt.obj.child);
             }
             else {
-                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
+                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
             }
         }
         else {
             if(check.found) {
-                check.node->object= opt.obj;
+                *check.result = opt.obj;
             }
             else if(check.lastfailed) {
-                add_entry(global, list, opt.obj);
+                add_entry(scope_root, list, opt.obj);
             }
             else {
-                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->name);
+                fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
             }
         }
         
@@ -401,7 +403,7 @@ access_list_s *parse_id(void)
     
     if(tok()->type == TOK_TYPE_ID) {
         list = alloc(sizeof(*list));
-        list->name = tok()->lexeme;
+        list->tok = tok();
         list->isindex = false;
         list->next = NULL;
         acc = list;
@@ -422,7 +424,7 @@ void parse_idsuffix(access_list_s **acc)
             if(next_tok()->type == TOK_TYPE_ID) {
                 (*acc)->next = alloc(sizeof(**acc));
                 *acc = (*acc)->next;
-                (*acc)->name = tok()->lexeme;
+                (*acc)->tok = tok();
                 (*acc)->isindex = false;
                 (*acc)->next = NULL;
                 next_tok();
@@ -509,15 +511,14 @@ void parse_index(access_list_s **acc)
 optfollow_s parse_idfollow(access_list_s *acc)
 {
     optfollow_s opt;
-    scope_s *agg;
+    object_s obj;
     
-    opt.isassign = true;
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
             next_tok();
-            agg = parse_aggregate_list();
-            opt.obj.agg = agg;
-            opt.obj.type = TYPE_ARGLIST;
+            obj.type = TYPE_ARGLIST;
+            opt.isassign = false;
+            parse_aggregate_list(&obj);
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -577,7 +578,7 @@ object_s parse_assignment(void)
 exp_s parse_expression(void)
 {
     exp_s exp;
-    access_list_s *acc, *accb;
+    access_list_s *acc;
     check_s check;
     optfollow_s opt;
     
@@ -587,8 +588,10 @@ exp_s parse_expression(void)
             exp.obj.tok = tok();
             if(tok()->att == TOK_ATT_INT)
                 exp.obj.type = TYPE_INT;
-            else
+            else if(tok()->att == TOK_ATT_REAL)
                 exp.obj.type = TYPE_REAL;
+            else
+                exp.obj.type = TYPE_INF;
             next_tok();
             break;
         case TOK_TYPE_STRING:
@@ -604,20 +607,20 @@ exp_s parse_expression(void)
                 exp.obj = opt.obj;
             }
             else {
-                check = check_entry(global, acc);
+                check = check_entry(scope_root, acc);
                 if(check.found) {
-                    exp.obj = check.node->object;
+                    exp.obj = *check.result;
                 }
                 else {
-                    printf("Access to undeclared identifier: %s\n", check.last->name);
+                    printf("Access to undeclared identifier: %s\n", check.last->tok->lexeme);
                 }
             }
             free_accesslist(acc);
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
-            exp.obj.agg = parse_aggregate();
             exp.obj.type = TYPE_AGGREGATE;
+            parse_aggregate(&exp.obj);
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
@@ -626,30 +629,28 @@ exp_s parse_expression(void)
     return exp;
 }
 
-scope_s *parse_aggregate(void)
+void parse_aggregate(object_s *obj)
 {
-    scope_s *agg;
-    
     if(tok()->type == TOK_TYPE_OPENBRACE) {
         next_tok();
-        agg = parse_aggregate_list();
+        parse_aggregate_list(obj);
         if(tok()->type == TOK_TYPE_CLOSEBRACE) {
             next_tok();
         }
         else {
+            obj->type = TYPE_NULL;
             fprintf(stderr, "Syntax Error at line %d: Expected } but got %s\n", tok()->lineno, tok()->lexeme);
         }
     }
     else {
+        obj->type = TYPE_NULL;
         fprintf(stderr, "Syntax Error at line %d: Expected { but got %s\n", tok()->lineno, tok()->lexeme);
     }
-    return NULL;
 }
 
-scope_s *parse_aggregate_list(void)
+void parse_aggregate_list(object_s *obj)
 {
     exp_s exp;
-    scope_s *agg = NULL;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
@@ -657,33 +658,20 @@ scope_s *parse_aggregate_list(void)
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
             exp = parse_expression();
-            if(exp.obj.agg) {
-                agg = exp.obj.agg;
-            }
-            else {
-                agg = make_scope(NULL, "_anonymous");
-                if(exp.acc) {
-                    if(!exp.acc->next) {
-                        add_entry(agg, exp.acc, exp.obj);
-                    }
-                }
-                else
-                    add_entry(agg, NULL, exp.obj);
-            }
-            parse_aggregate_list_(agg);
+            obj->child = make_scope(NULL, "_anonymous");
+            parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
-            agg = make_scope(NULL, "_anonymous");
+            obj->child = make_scope(NULL, "_anonymous");
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
-    return agg;
 }
 
-void parse_aggregate_list_(scope_s *agg)
+void parse_aggregate_list_(object_s *obj)
 {
     exp_s exp;
     check_s check;
@@ -695,19 +683,19 @@ void parse_aggregate_list_(scope_s *agg)
             exp = parse_expression();
             if(exp.acc) {
                 if(!exp.acc->next) {
-                    check = check_entry(agg, exp.acc);
+                    check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        fprintf(stderr, "Error near line %u: Redeclaration of aggregate member: %s\n", t->lineno, exp.acc->name);
+                        fprintf(stderr, "Error near line %u: Redeclaration of aggregate member: %s\n", t->lineno, exp.acc->tok->lexeme);
                     }
                     else {
-                        add_entry(agg, exp.acc, exp.obj);
+                        scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
                     }
                 }
             }
             else {
-                add_entry(agg, exp.acc, exp.obj);
+                scope_add(obj->child, exp.obj, NULL);
             }
-            parse_aggregate_list_(agg);
+            parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -755,20 +743,33 @@ check_s check_entry(scope_s *root, access_list_s *acc)
 {
     sym_record_s *rec;
     check_s check;
-    
+
+    check.scope = root;
     while(true) {
         if(acc->isindex) {
-            if(acc->index >= root->size) {
+            if(acc->index > root->size) {
                 check.found = false;
                 check.last = acc;
                 check.result = NULL;
                 check.lastfailed = false;
+                fprintf(stderr, "Error: Index Out of Bounds at line %u\n", acc->tok->lineno);
                 return check;
+            }
+            else if (acc->index == check.scope->size) {
+                if(!acc->next) {
+                    check.found = false;
+                    check.lastfailed = true;
+                    check.last = acc;
+                    return check;
+                }
+                else {
+                    
+                }
             }
             check.result = root->object[acc->index];
         }
         else {
-            rec = sym_lookup(&root->table, acc->name);
+            rec = sym_lookup(&root->table, acc->tok->lexeme);
             if(rec)
                 check.result = rec->object;
             else {
@@ -798,100 +799,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
 }
 
 
-/*
-scope_s *make_scope(scope_s *parent, char *ident)
-{
-    scope_s *s = alloc(sizeof(*s));
-    
-    s->children = NULL;
-    s->nchildren = 0;
-    s->parent = parent;
-    s->ident = ident;
-    if(parent)
-        attach_child(parent, s);
-    return s;
-}
-
-void attach_child(scope_s *parent, scope_s *child)
-{
-    parent->nchildren++;
-    if(parent->children)
-        parent->children = ralloc(parent->children, parent->nchildren*sizeof(*parent->children));
-    else
-        parent->children = alloc(sizeof(*parent->children));
-    parent->children[parent->nchildren-1] = child;
-}
-
-
-check_s check_entry(scope_s *root, access_list_s *acc)
-{
-    int i;
-    access_list_s *iter;
-    check_s res;
-    
-    iter = acc;
-repeat:
-    for(i = 0; i < root->nchildren; i++) {
-        if(iter->isindex) {
-            if(iter->islazy) {
-                
-            }
-            else {
-                if(iter->index == i) {
-                    root = root->children[i];
-                    acc = acc->next;
-                    goto repeat;
-                }
-            }
-        }
-        else if(!strcmp(root->children[i]->ident, iter->name)) {
-            if(acc->next) {
-                root = root->children[i];
-                acc = acc->next;
-                goto repeat;
-            }
-            else {
-                res.found = true;
-                res.lastfailed = false;
-                res.node = root->children[i];
-                return res;
-            }
-        }
-    }
-    if(!acc->next)
-        res.lastfailed = true;
-    else
-        res.lastfailed = false;
-    res.found = false;
-    res.node = root;
-    res.last = acc;
-    return res;
-}
-
-void add_entry(scope_s *root, access_list_s *acc, object_s obj)
-{
-    int i;
-    scope_s *new;
-    
-    if(acc) {
-        while(acc->next) {
-            for(i = 0; i < root->nchildren; i++) {
-                if(!strcmp(root->children[i]->ident, acc->name))
-                    break;
-            }
-            assert(i != root->nchildren);
-            acc = acc->next;
-            root = root->children[i];
-        }
-        new = make_scope(root, acc->name);
-    }
-    else {
-        new = make_scope(root, "_anonymous");
-    }
-    new->object = obj;
-}
-*/
-
 bool function_check(check_s check, scope_s *args)
 {
     int i;
@@ -901,9 +808,9 @@ bool function_check(check_s check, scope_s *args)
         if(!strcmp(funcs[i].name, str)) {
             switch(funcs[i].type) {
                 case TYPE_NULL:
-                    if(check.node != global) {
-                        fprintf(stderr, "Cannot call function %s on object types.\n", str);
-                    }
+                   // if(check. != global) {
+                      //  fprintf(stderr, "Cannot call function %s on object types.\n", str);
+                    //}
                     funcs[i].func(NULL);
                     break;
                 case TYPE_ANY:
@@ -946,7 +853,7 @@ void *net_kill(void *arg)
 
 void *net_clear(void *arg)
 {
-    clear_scope(global);
+    //clear_scope(global);
 }
 
 
@@ -1006,7 +913,6 @@ void sym_insert(sym_table_s *table, char *key, void *object)
     rec->key = key;
     rec->object = object;
     rec->next = NULL;
-    return false;
 }
 
 sym_record_s *sym_lookup(sym_table_s *table, char *key)
@@ -1069,7 +975,7 @@ void buf_addc(buf_s **b, int c)
     
     if(bb->size == bb->bsize) {
         bb->bsize *= 2;
-        bb = *b = ralloc(b, sizeof(*bb) + bb->bsize);
+        bb = *b = ralloc(bb, sizeof(*bb) + bb->bsize);
     }
     bb->buf[bb->size++] = c;
 }
@@ -1094,6 +1000,13 @@ void buf_trim(buf_s **b)
 {
     (*b)->bsize = (*b)->size;
     *b = ralloc(*b, (*b)->size);
+}
+
+void buf_reset(buf_s **b)
+{
+    *b = ralloc(*b, sizeof(**b) + INIT_BUF_SIZE);
+    (*b)->bsize = INIT_BUF_SIZE;
+    (*b)->size = 0;
 }
 
 void *alloc(size_t size)

@@ -11,11 +11,17 @@
 
 int main(int argc, char *argv[])
 {
-    buf_s *in = buf_init();
+    int c;
+    char *src;
+    buf_s *in;
     
     if(argc > 1) {
         
     }
+    
+    
+    
     parse("test");
+        
 
 }

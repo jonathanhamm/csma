@@ -9,13 +9,29 @@ a = {
         bob = node("wahaha"),
         woah = node(32),
         omg = node(wut)
+
     }, 
-    derp = 32, 
+    de2rp = 32,
     32,32
+}
+
+nodes = {
+    sub1 = {
+        a = node("Bob"),
+        b = node("wah"),
+        c = node("ragg")
+    },
+    sub2 = {
+        
+    },
+    sub3 = {
+        
+    }
 }
 
 message1 = "hello world"
 message2 = "goodbye world"
+message4 = 3.14159
 
 a.send("b", message1)
 
@@ -26,7 +42,6 @@ a.send("b", message1)
 
 #broadcast
 a.send("b", "hello son")
-
 
 a.send("hello world")
 
