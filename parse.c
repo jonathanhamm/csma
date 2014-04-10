@@ -456,24 +456,24 @@ void parse_idsuffix(access_list_s **acc)
 void parse_index(access_list_s **acc)
 {
     token_s *tbackup;
-    object_s exp;
+    exp_s exp;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACKET:
             tbackup = tok();
             next_tok();
-            exp = parse_expression().obj;
+            exp = parse_expression();
             if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
-                if(exp.type == TYPE_INT) {
+                if(exp.obj.type == TYPE_INT) {
                     (*acc)->next = alloc(sizeof(**acc));
                     *acc = (*acc)->next;
-                    (*acc)->index = atoi(exp.tok->lexeme);
+                    (*acc)->index = atoi(exp.obj.tok->lexeme);
                     (*acc)->isindex = true;
                     (*acc)->next = NULL;
                 }
                 else {
                     fprintf(stderr, "Error: invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
-                    switch(exp.type) {
+                    switch(exp.obj.type) {
                         case TYPE_REAL:
                             puts("real type.");
                             break;
@@ -494,6 +494,7 @@ void parse_index(access_list_s **acc)
             else {
                 printf("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
             }
+            free_accesslist(exp.acc);
             break;
         case TOK_TYPE_COMMA:
         case TOK_TYPE_CLOSEBRACE:
