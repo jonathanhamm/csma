@@ -137,6 +137,7 @@ static scope_s *scope_root;
 static char *source;
 static int source_fd;
 static struct stat fstats;
+static int printtabs;
 
 static func_s funcs[] = {
     {"send", TYPE_NODE},
@@ -916,10 +917,16 @@ void *net_print(void *arg)
         }
     }
     else {
-        
+        if(scope_root->size > 0) {
+            for(i = 0; i < scope_root->size-1; i++) {
+                print_object(scope_root->object[i]);
+                printf(", ");
+            }
+            print_object(scope_root->object[i]);
+        }
     }
     putchar('\n');
-    
+    printtabs = 0;
     return NULL;
 }
 
@@ -958,11 +965,13 @@ void print_object(void *object)
             break;
         case TYPE_AGGREGATE:
             printf("{ ");
-            for(i = 0; i < obj->child->size-1; i++) {
+            if(obj->child->size > 0) {
+                for(i = 0; i < obj->child->size-1; i++) {
+                    print_object(obj->child->object[i]);
+                    printf(", ");
+                }
                 print_object(obj->child->object[i]);
-                printf(", ");
             }
-            print_object(obj->child->object[i]);
             printf(" }");
             break;
         case TYPE_NULL:
