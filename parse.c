@@ -624,7 +624,6 @@ exp_s parse_expression(void)
 
                 }
             }
-            free_accesslist(acc);
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
