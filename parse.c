@@ -472,13 +472,16 @@ void parse_index(access_list_s **acc)
                     (*acc)->next = NULL;
                 }
                 else {
-                    fprintf(stderr, "Invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
+                    fprintf(stderr, "Error: invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
                     switch(exp.type) {
                         case TYPE_REAL:
                             puts("real type.");
                             break;
                         case TYPE_STRING:
                             puts("string type.");
+                            break;
+                        case TYPE_INF:
+                            puts("infinite");
                             break;
                         default:
                             puts("unknown type.");
@@ -613,9 +616,10 @@ exp_s parse_expression(void)
                 }
                 else {
                     if(opt.obj.type == TYPE_ARGLIST) {
+                        function_check(check, opt.obj.child);
                     }
                     else {
-                        fprintf(stderr, "Access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
+                        fprintf(stderr, "Error: access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
                     }
 
                 }
@@ -671,12 +675,15 @@ void parse_aggregate_list(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
+                        fprintf(stderr, "Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
                     }
                 }
+            }
+            else {
+                scope_add(obj->child, exp.obj, NULL);
             }
             parse_aggregate_list_(obj);
             break;
@@ -704,7 +711,7 @@ void parse_aggregate_list_(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
+                        fprintf(stderr, "Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);

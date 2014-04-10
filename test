@@ -9,9 +9,11 @@ a = {
         woah = node(32),
         omg = node(wut)
     },
+    bob = 3,
     de2rp = 32,
     32,32
 }
+
 
 nodes = {
     sub1 = {
@@ -27,6 +29,9 @@ nodes = {
     }
 }
 
+c = {1, 2, 3, 4, 5}
+c[inf] = 4
+
 message1 = "hello world"
 message2 = "goodbye world"
 message4 = 3.14159
@@ -34,7 +39,7 @@ message4 = 3.14159
 a.send("b", message1)
 
 #############################################
-#   Node Commands
+#   Node Commands:
 #############################################
 
 
