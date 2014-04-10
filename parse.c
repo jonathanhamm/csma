@@ -173,7 +173,7 @@ static scope_s *make_scope(scope_s *parent, char *id);
 static void scope_add(scope_s *scope, object_s obj, char *id);
 static check_s check_entry(scope_s *root, access_list_s *acc);
 
-static bool function_check(check_s check, scope_s *args);
+static bool function_check(check_s check, object_s *args);
 
 
 static void print_accesslist(access_list_s *list);
@@ -371,7 +371,7 @@ void parse_statement(void)
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check, opt.exp.obj.child);
+                function_check(check, &opt.exp.obj);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
@@ -622,7 +622,7 @@ exp_s parse_expression(void)
                 }
                 else {
                     if(opt.exp.obj.type == TYPE_ARGLIST) {
-                        function_check(check, opt.exp.obj.child);
+                        function_check(check, &opt.exp.obj);
                     }
                     else {
                         fprintf(stderr, "Error: access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
@@ -838,7 +838,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
 }
 
 
-bool function_check(check_s check, scope_s *args)
+bool function_check(check_s check, object_s *args)
 {
     int i;
     char *str = check.last->tok->lexeme;
@@ -904,7 +904,7 @@ void *net_print(void *arg)
     
     if(obj->child->size > 0) {
         for(i = 0; i < obj->child->size; i++) {
-        obj->child->size
+            print_object(obj->child->object[i]);
         }
     }
     else {
@@ -933,10 +933,36 @@ void print_accesslist(access_list_s *list)
     putchar('\n');
 }
 
-void print_object(object_s *obj)
+void print_object(void *object)
 {
     int i;
+    object_s *obj = object;
     
+    switch(obj->type) {
+        case TYPE_INT:
+        case TYPE_REAL:
+        case TYPE_INF:
+        case TYPE_STRING:
+        case TYPE_NODE:
+        case TYPE_NULL:
+        case TYPE_ANY:
+            printf("%s", obj->tok->lexeme);
+            break;
+        case TYPE_AGGREGATE:
+            printf("{ ");
+            for(i = 0; i < obj->child->size-1; i++) {
+                print_object(obj->child->object[i]);
+                printf(", ");
+            }
+            print_object(obj->child->object[i]);
+            printf(" }");
+            break;
+        case TYPE_ARGLIST:
+        default:
+            puts("illegal state");
+            assert(false);
+            break;
+    }
 }
 
 void free_accesslist(access_list_s *l)
