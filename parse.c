@@ -154,6 +154,7 @@ static void print_tokens(void);
 
 static void sym_insert(sym_table_s *table, char *key, void *object);
 static sym_record_s *sym_lookup(sym_table_s *table, char *key);
+static char *sym_get(sym_table_s *table, void *obj);
 static uint16_t hash_pjw(char *key);
 
 static void parse_statement(void);
@@ -176,7 +177,7 @@ static bool function_check(check_s check, scope_s *args);
 
 
 static void print_accesslist(access_list_s *list);
-static void print_object(scope_s *root);
+static void print_object(void *obj);
 
 static void clear_scope(scope_s *root);
 static void free_accesslist(access_list_s *l);
@@ -898,8 +899,18 @@ void *net_clear(void *arg)
 
 void *net_print(void *arg)
 {
-    print_object(arg);
-    putchar('\n');
+    int i;
+    object_s *obj = arg;
+    
+    if(obj->child->size > 0) {
+        for(i = 0; i < obj->child->size; i++) {
+        obj->child->size
+        }
+    }
+    else {
+        
+    }
+    
     return NULL;
 }
 
@@ -922,11 +933,9 @@ void print_accesslist(access_list_s *list)
     putchar('\n');
 }
 
-void print_object(scope_s *root)
+void print_object(object_s *obj)
 {
     int i;
-    char *c;
-    object_s *optr;
     
 }
 
@@ -976,6 +985,24 @@ sym_record_s *sym_lookup(sym_table_s *table, char *key)
     }
     return NULL;
 }
+
+char *sym_get(sym_table_s *table, void *obj)
+{
+    int i;
+    sym_record_s **rec = table->table, *ref;
+    
+    for(i = 0; i < SYM_TABLE_SIZE; i++) {
+        if(*rec) {
+            for(ref = *rec; ref; ref = ref->next) {
+                if(ref->object == obj)
+                    return ref->key;
+            }
+        }
+        rec++;
+    }
+    return NULL;
+}
+
 
 uint16_t hash_pjw(char *key)
 {

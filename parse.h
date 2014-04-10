@@ -65,6 +65,7 @@ extern void buf_addc(buf_s **b, int c);
 extern void buf_addstr(buf_s **b, char *str, size_t size);
 extern void buf_trim(buf_s **b);
 extern void buf_reset(buf_s **b);
+extern void buf_free(buf_s *b);
 
 extern void *alloc(size_t size);
 extern void *allocz(size_t size);
