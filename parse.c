@@ -371,7 +371,9 @@ void parse_statement(void)
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check, &opt.exp.obj);
+                if(!function_check(check, &opt.exp.obj)) {
+                    fprintf(stderr, "Error: Call to unkown function %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
+                }
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
@@ -496,7 +498,7 @@ void parse_index(access_list_s **acc)
             else {
                 printf("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
             }
-            free_accesslist(exp.acc);
+            //free_accesslist(exp.acc);
             break;
         case TOK_TYPE_COMMA:
         case TOK_TYPE_CLOSEBRACE:
@@ -622,7 +624,12 @@ exp_s parse_expression(void)
                 }
                 else {
                     if(opt.exp.obj.type == TYPE_ARGLIST) {
-                        function_check(check, &opt.exp.obj);
+                        if(function_check(check, &opt.exp.obj))
+                            exp.obj.type = TYPE_ANY;
+                        else
+                            exp.obj.type = TYPE_NULL;
+                        exp.obj.tok = check.last->tok;
+                        exp.obj.islazy = false;
                     }
                     else {
                         fprintf(stderr, "Error: access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
@@ -832,6 +839,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
         else {
             check.found = true;
             check.lastfailed = false;
+            check.last = acc;
             return check;
         }
      }
@@ -910,6 +918,7 @@ void *net_print(void *arg)
     else {
         
     }
+    putchar('\n');
     
     return NULL;
 }
@@ -944,7 +953,6 @@ void print_object(void *object)
         case TYPE_INF:
         case TYPE_STRING:
         case TYPE_NODE:
-        case TYPE_NULL:
         case TYPE_ANY:
             printf("%s", obj->tok->lexeme);
             break;
@@ -956,6 +964,9 @@ void print_object(void *object)
             }
             print_object(obj->child->object[i]);
             printf(" }");
+            break;
+        case TYPE_NULL:
+            printf("null");
             break;
         case TYPE_ARGLIST:
         default:
