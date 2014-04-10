@@ -380,7 +380,7 @@ void parse_statement(void)
                 *check.result = opt.obj;
             }
             else if(check.lastfailed) {
-                add_entry(scope_root, list, opt.obj);
+                scope_add(check.scope, opt.obj, check.last->tok->lexeme);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
@@ -511,14 +511,13 @@ void parse_index(access_list_s **acc)
 optfollow_s parse_idfollow(access_list_s *acc)
 {
     optfollow_s opt;
-    object_s obj;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
             next_tok();
-            obj.type = TYPE_ARGLIST;
+            opt.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
-            parse_aggregate_list(&obj);
+            parse_aggregate_list(&opt.obj);
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -602,6 +601,7 @@ exp_s parse_expression(void)
         case TOK_TYPE_ID:
             acc = parse_id();
             opt = parse_optfollow(acc);
+
             if(opt.isassign) {
                 exp.acc = acc;
                 exp.obj = opt.obj;
@@ -612,7 +612,12 @@ exp_s parse_expression(void)
                     exp.obj = *check.result;
                 }
                 else {
-                    printf("Access to undeclared identifier: %s\n", check.last->tok->lexeme);
+                    if(opt.obj.type == TYPE_ARGLIST) {
+                    }
+                    else {
+                        fprintf(stderr, "Access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
+                    }
+
                 }
             }
             free_accesslist(acc);
@@ -651,14 +656,28 @@ void parse_aggregate(object_s *obj)
 void parse_aggregate_list(object_s *obj)
 {
     exp_s exp;
+    check_s check;
+    token_s *t;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
         case TOK_TYPE_STRING:
         case TOK_TYPE_NUM:
         case TOK_TYPE_ID:
+            t = tok();
             exp = parse_expression();
             obj->child = make_scope(NULL, "_anonymous");
+            if(exp.acc) {
+                if(!exp.acc->next) {
+                    check = check_entry(obj->child, exp.acc);
+                    if(check.found) {
+                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
+                    }
+                    else {
+                        scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
+                    }
+                }
+            }
             parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
@@ -685,7 +704,7 @@ void parse_aggregate_list_(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        fprintf(stderr, "Error near line %u: Redeclaration of aggregate member: %s\n", t->lineno, exp.acc->tok->lexeme);
+                        fprintf(stderr, "Error: Redeclaration of aggregate member: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -747,7 +766,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
     check.scope = root;
     while(true) {
         if(acc->isindex) {
-            if(acc->index > root->size) {
+            if(acc->index > check.scope->size) {
                 check.found = false;
                 check.last = acc;
                 check.result = NULL;
@@ -760,16 +779,19 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.found = false;
                     check.lastfailed = true;
                     check.last = acc;
-                    return check;
                 }
                 else {
-                    
+                    fprintf(stderr, "Error: Attempt to access uninitialized array element at line %u\n", acc->tok->lineno);
+                    check.found = false;
+                    check.lastfailed = false;
+                    check.last = acc;
                 }
+                return check;
             }
-            check.result = root->object[acc->index];
+            check.result = check.scope->object[acc->index];
         }
         else {
-            rec = sym_lookup(&root->table, acc->tok->lexeme);
+            rec = sym_lookup(&check.scope->table, acc->tok->lexeme);
             if(rec)
                 check.result = rec->object;
             else {
@@ -784,7 +806,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
         if(acc->next) {
             if(check.result->type == TYPE_AGGREGATE) {
                 acc = acc->next;
-                root = check.result->child;
+                check.scope = check.result->child;
             }
             else {
                 check.found = false;
@@ -795,6 +817,11 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 return check;
             }
         }
+        else {
+            check.found = true;
+            check.lastfailed = false;
+            return check;
+        }
      }
 }
 
@@ -802,7 +829,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
 bool function_check(check_s check, scope_s *args)
 {
     int i;
-    char *str = check.last->name;
+    char *str = check.last->tok->lexeme;
     
     for(i = 0; i < N_FUNCS; i++) {
         if(!strcmp(funcs[i].name, str)) {
@@ -821,6 +848,7 @@ bool function_check(check_s check, scope_s *args)
 
                     break;
             }
+            return true;
         }
     }
     return false;
@@ -875,9 +903,9 @@ void print_accesslist(access_list_s *list)
         }
         else {
             if(l == list)
-                printf("%s", l->name);
+                printf("%s", l->tok->lexeme);
             else
-                printf("->%s", l->name);
+                printf("->%s", l->tok->lexeme);
         }
     }
     putchar('\n');

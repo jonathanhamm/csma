@@ -1,16 +1,14 @@
 #Node Declarations
 
 a = {
-    bob = node("bob"),
+    bob = "hi",
     derp = node("derp"),
-    omg = node("hahah"),
     omg = 10,
     lol = {
         bob = node("wahaha"),
         woah = node(32),
         omg = node(wut)
-
-    }, 
+    },
     de2rp = 32,
     32,32
 }
