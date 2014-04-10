@@ -30,7 +30,7 @@ nodes = {
 }
 
 c = {1, 2, 3, 4, 5}
-c[inf] = 4
+c[3] = 4
 
 message1 = "hello world"
 message2 = "goodbye world"
@@ -41,7 +41,6 @@ a.send("b", message1)
 #############################################
 #   Node Commands:
 #############################################
-
 
 #broadcast
 a.send("b", "hello son")

@@ -116,7 +116,7 @@ struct func_s
 struct optfollow_s
 {
     bool isassign;
-    object_s obj;
+    exp_s exp;
 };
 
 struct check_s
@@ -162,7 +162,7 @@ static void parse_idsuffix(access_list_s **acc);
 static void parse_index(access_list_s **acc);
 static optfollow_s parse_idfollow(access_list_s *acc);
 static optfollow_s parse_optfollow(access_list_s *acc);
-static object_s parse_assignment(void);
+static exp_s parse_assignment(void);
 static exp_s parse_expression(void);
 static void parse_aggregate(object_s *obj);
 static void parse_aggregate_list(object_s *obj);
@@ -180,6 +180,7 @@ static void print_object(scope_s *root);
 
 static void clear_scope(scope_s *root);
 static void free_accesslist(access_list_s *l);
+static void free_tokens(void);
 
 static char *strclone(char *str);
 
@@ -362,14 +363,14 @@ void parse_statement(void)
     optfollow_s opt;
     
     if(tok()->type == TOK_TYPE_ID) {
-        opt.obj.tok = id = tok();
+        opt.exp.obj.tok = id = tok();
         list = parse_id();
         opt = parse_idfollow(list);
-        check = check_entry(scope_root, list);
         
-        if(opt.obj.type == TYPE_ARGLIST) {
+        check = check_entry(scope_root, list);
+        if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                function_check(check, opt.obj.child);
+                function_check(check, opt.exp.obj.child);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
@@ -377,10 +378,10 @@ void parse_statement(void)
         }
         else {
             if(check.found) {
-                *check.result = opt.obj;
+                *check.result = opt.exp.obj;
             }
             else if(check.lastfailed) {
-                scope_add(check.scope, opt.obj, check.last->tok->lexeme);
+                scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
                 fprintf(stderr, "Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
@@ -455,13 +456,12 @@ void parse_idsuffix(access_list_s **acc)
 
 void parse_index(access_list_s **acc)
 {
-    token_s *tbackup;
+    token_s *t;
     exp_s exp;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACKET:
-            tbackup = tok();
-            next_tok();
+            t = next_tok();
             exp = parse_expression();
             if(tok()->type == TOK_TYPE_CLOSE_BRACKET) {
                 if(exp.obj.type == TYPE_INT) {
@@ -469,10 +469,11 @@ void parse_index(access_list_s **acc)
                     *acc = (*acc)->next;
                     (*acc)->index = atoi(exp.obj.tok->lexeme);
                     (*acc)->isindex = true;
+                    (*acc)->tok = t;
                     (*acc)->next = NULL;
                 }
                 else {
-                    fprintf(stderr, "Error: invalid Type Used to index aggregate object near line %d. Expected integer but got ", tbackup->lineno);
+                    fprintf(stderr, "Error: invalid Type Used to index aggregate object near line %d. Expected integer but got ", t->lineno);
                     switch(exp.obj.type) {
                         case TYPE_REAL:
                             puts("real type.");
@@ -519,9 +520,10 @@ optfollow_s parse_idfollow(access_list_s *acc)
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
             next_tok();
-            opt.obj.type = TYPE_ARGLIST;
+            opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
-            parse_aggregate_list(&opt.obj);
+            opt.exp.acc = NULL;
+            parse_aggregate_list(&opt.exp.obj);
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -531,7 +533,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
             break;
         case TOK_TYPE_ASSIGNOP:
             opt.isassign = true;
-            opt.obj = parse_assignment();
+            opt.exp = parse_assignment();
             break;
         default:
             fprintf(stderr, "Syntax Error at line %d: Expected ( = or += but got: %s\n", tok()->lineno, tok()->lexeme);
@@ -561,21 +563,23 @@ optfollow_s parse_optfollow(access_list_s *acc)
             fprintf(stderr, "Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
-    return (optfollow_s){.isassign = false, .obj = {.type = TYPE_NULL}};
+    return (optfollow_s){.isassign = false, .exp = {NULL, .obj = {.type = TYPE_NULL}}};
 }
 
-object_s parse_assignment(void)
+exp_s parse_assignment(void)
 {
-    object_s obj;
+    exp_s exp;
     
     if(tok()->type == TOK_TYPE_ASSIGNOP) {
         next_tok();
-        obj = parse_expression().obj;
+        exp = parse_expression();
     }
     else {
+        exp.acc = NULL;
+        exp.obj.type = TYPE_NULL;
         fprintf(stderr, "Syntax Error at line %d: Expected += or = but got %s\n", tok()->lineno, tok()->lexeme);
     }
-    return obj;
+    return exp;
 }
 
 exp_s parse_expression(void)
@@ -608,7 +612,7 @@ exp_s parse_expression(void)
 
             if(opt.isassign) {
                 exp.acc = acc;
-                exp.obj = opt.obj;
+                exp.obj = opt.exp.obj;
             }
             else {
                 check = check_entry(scope_root, acc);
@@ -616,8 +620,8 @@ exp_s parse_expression(void)
                     exp.obj = *check.result;
                 }
                 else {
-                    if(opt.obj.type == TYPE_ARGLIST) {
-                        function_check(check, opt.obj.child);
+                    if(opt.exp.obj.type == TYPE_ARGLIST) {
+                        function_check(check, opt.exp.obj.child);
                     }
                     else {
                         fprintf(stderr, "Error: access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
@@ -926,7 +930,6 @@ void print_object(scope_s *root)
     
 }
 
-
 void free_accesslist(access_list_s *l)
 {
     access_list_s *lb;
@@ -935,6 +938,18 @@ void free_accesslist(access_list_s *l)
         lb = l->next;
         free(l);
         l = lb;
+    }
+}
+
+void free_tokens(void)
+{
+    token_s *tb;
+    
+    while(head) {
+        tb = head->next;
+        free(head->lexeme);
+        free(head);
+        head = tb;
     }
 }
 
