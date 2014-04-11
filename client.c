@@ -3,6 +3,7 @@
 
 int main(int argc, char *argv[])
 {
-    printf("Successfully Started: %s\n", argv[2]);
+    printf("Successfully Started: %s\n", argv[1]);
+    fflush(stdout);
     return 0;
 }

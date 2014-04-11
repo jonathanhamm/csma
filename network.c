@@ -31,8 +31,10 @@ int main(int argc, char *argv[])
         parse(src);
         closefile();
     }
+    
+    
     process_tasks();
-
+    
     
     in = buf_init();
     
@@ -55,10 +57,9 @@ void process_tasks(void)
     task_s *t;
     
     while((t = task_dequeue())) {
-        printf("name: %s\n", (char *)(t + 1));
         switch(t->func) {
             case FNET_NODE:
-                create_node((char *)(t + 1));
+                create_node(*(char **)(t + 1));
                 break;
             default:
                 break;
@@ -68,18 +69,23 @@ void process_tasks(void)
 
 void create_node(char *id)
 {
+    int status;
     pid_t pid;
     char *argv[3] = {"client", id, NULL};
     
-    printf("Processing Node\n");
+    printf("name: %s\n", id);
     
     pid = fork();
     
     if(pid) {
-        printf("pid is %d\n", pid);
         sym_insert(&stations, id, (sym_data_u){.pid = pid});
+        waitpid(pid, &status, WNOHANG);
+    }
+    else if(pid < 0) {
+        perror("Failed to create station process.");
+        exit(EXIT_FAILURE);
     }
     else {
-        execvp("client", argv);
+        status = execv("client", argv);
     }
 }

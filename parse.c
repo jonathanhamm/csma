@@ -898,10 +898,11 @@ void *net_node(void *arg)
     }
     else {
         if(obj->child->object[0]->type == TYPE_STRING) {
-            t = alloc(sizeof(*t) + sizeof(char *));
+            t = allocz(sizeof(*t) + sizeof(char *));
             t->func = FNET_NODE;
             t->next = NULL;
-            *(char **)(t + 1) = "hey";
+            *(char **)(t + 1) = obj->child->object[0]->tok->lexeme;
+            printf("%s\n", *(char **)(t + 1));
             task_enqueue(t);
         }
         else {
