@@ -10,14 +10,17 @@
 #include "parse.h"
 #include "network.h"
 
-static sym_table_s stations;
+#define CLIENT_PATH "./client"
 
+//static volatile sig_atomic_t got_SIG
+static int pipe_fd[2];
+static sym_table_s stations;
 static void process_tasks(void);
 static void create_node(char *id);
 
 int main(int argc, char *argv[])
 {
-    int c;
+    int c, status;
     char *src;
     buf_s *in;
     
@@ -32,9 +35,13 @@ int main(int argc, char *argv[])
         closefile();
     }
     
-    
+    status = pipe(pipe_fd);
+    if(status < 0) {
+        perror("Error Creating Pipe");
+        exit(EXIT_FAILURE);
+    }
+        
     process_tasks();
-    
     
     in = buf_init();
     
@@ -64,6 +71,7 @@ void process_tasks(void)
             default:
                 break;
         }
+        free(t);
     }
 }
 
@@ -71,19 +79,26 @@ void create_node(char *id)
 {
     int status;
     pid_t pid;
-    char *argv[3] = {"client", id, NULL};
+    char *argv[4];
+    char fd_buf[2*sizeof(int)+2];
+    
+    sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
+    argv[0] = CLIENT_PATH;
+    argv[1] = id;
+    argv[2] = fd_buf;
+    argv[3] = NULL;
     
     pid = fork();
     
     if(pid) {
         sym_insert(&stations, id, (sym_data_u){.pid = pid});
-        pause();
     }
     else if(pid < 0) {
         perror("Failed to create station process.");
         exit(EXIT_FAILURE);
     }
     else {
-        status = execv("client", argv);
+        status = execv(CLIENT_PATH, argv);
+        
     }
 }

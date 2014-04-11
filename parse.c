@@ -195,6 +195,8 @@ void error(const char *fs, ...)
     vfprintf(stderr, fs, args);
     va_end(args);
     
+    putchar('\n');
+    
     parse_success = false;
 }
 
@@ -260,7 +262,7 @@ void lex(char *src)
                 bptr = fptr;
                 while(*++fptr != '"') {
                     if(!*fptr)
-                        error("Improperly closed double quote\n");
+                        error("Improperly closed double quote");
                 }
                 c = *++fptr;
                 *fptr = '\0';
@@ -310,7 +312,7 @@ void lex(char *src)
                     }
                 }
                 else {
-                    error("Lexical Error at line %d: Unknown symbol %c\n", lineno, *fptr);
+                    error("Lexical Error at line %d: Unknown symbol %c", lineno, *fptr);
                     fptr++;
                 }
                 break;
@@ -367,11 +369,11 @@ void parse_statement(void)
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
                 if(!function_check(check, &opt.exp.obj)) {
-                    error("Error: Call to unkown function %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
+                    error("Error: Call to unkown function %s at line %u", check.last->tok->lexeme, check.last->tok->lineno);
                 }
             }
             else {
-                error("Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
+                error("Error near line %d: Access to undeclared object in %s", id->lineno, check.last->tok->lexeme);
             }
         }
         else {
@@ -382,7 +384,7 @@ void parse_statement(void)
                 scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
-                error("Error near line %d: Access to undeclared object in %s\n", id->lineno, check.last->tok->lexeme);
+                error("Error near line %d: Access to undeclared object in %s", id->lineno, check.last->tok->lexeme);
             }
         }
         
@@ -392,7 +394,7 @@ void parse_statement(void)
         
     }
     else {
-        error("Syntax Error at line %d: Expected EOF but got %s\n", tok()->lineno, tok()->lexeme);
+        error("Syntax Error at line %d: Expected EOF but got %s", tok()->lineno, tok()->lexeme);
     }
 }
 
@@ -411,7 +413,7 @@ access_list_s *parse_id(void)
         parse_idsuffix(&acc);
     }
     else {
-        error("Syntax Error at line %d: Expected identifier but got %s\n", tok()->lineno, tokcurr->lexeme);
+        error("Syntax Error at line %d: Expected identifier but got %s", tok()->lineno, tokcurr->lexeme);
     }
     return list;
 }
@@ -431,7 +433,7 @@ void parse_idsuffix(access_list_s **acc)
                 parse_idsuffix(acc);
             }
             else {
-                error("Syntax Error at line %d: Expected identifier, but got %s\n", tok()->lineno, tok()->lexeme);
+                error("Syntax Error at line %d: Expected identifier, but got %s", tok()->lineno, tok()->lexeme);
             }
             break;
         case TOK_TYPE_OPENBRACE:
@@ -447,7 +449,7 @@ void parse_idsuffix(access_list_s **acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected . { } string number = += ) ( identifier , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected . { } string number = += ) ( identifier , or EOF but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -491,7 +493,7 @@ void parse_index(access_list_s **acc)
                 parse_index(acc);
             }
             else {
-                error("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
+                error("Syntax Error at line %d: Expected [ but got %s", tok()->lineno, tok()->lexeme);
             }
             break;
         case TOK_TYPE_COMMA:
@@ -505,7 +507,7 @@ void parse_index(access_list_s **acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -525,7 +527,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
                 next_tok();
             }
             else {
-                error("Syntax Error at line %d: Exprected ) but got %s\n", tok()->lineno,  tok()->lexeme);
+                error("Syntax Error at line %d: Exprected ) but got %s", tok()->lineno,  tok()->lexeme);
             }
             break;
         case TOK_TYPE_ASSIGNOP:
@@ -533,7 +535,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp = parse_assignment();
             break;
         default:
-            error("Syntax Error at line %d: Expected ( = or += but got: %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected ( = or += but got: %s", tok()->lineno, tok()->lexeme);
             break;
     }
     return opt;
@@ -557,7 +559,7 @@ optfollow_s parse_optfollow(access_list_s *acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
     return (optfollow_s){.isassign = false, .exp = {NULL, .obj = {.type = TYPE_NULL}}};
@@ -574,7 +576,7 @@ exp_s parse_assignment(void)
     else {
         exp.acc = NULL;
         exp.obj.type = TYPE_NULL;
-        error("Syntax Error at line %d: Expected += or = but got %s\n", tok()->lineno, tok()->lexeme);
+        error("Syntax Error at line %d: Expected += or = but got %s", tok()->lineno, tok()->lexeme);
     }
     return exp;
 }
@@ -629,7 +631,8 @@ exp_s parse_expression(void)
                         exp.obj.islazy = false;
                     }
                     else {
-                        error("Error: access to undeclared identifier %s at line %u\n", check.last->tok->lexeme, check.last->tok->lineno);
+                        exp.obj.type = TYPE_NULL;
+                        error("Error: access to undeclared identifier %s at line %u", check.last->tok->lexeme, check.last->tok->lineno);
                     }
 
                 }
@@ -642,7 +645,7 @@ exp_s parse_expression(void)
             parse_aggregate(&exp.obj);
             break;
         default:
-            error("Syntax Error at line %d: Expected number string identifer or { but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected number string identifer or { but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
     return exp;
@@ -658,12 +661,12 @@ void parse_aggregate(object_s *obj)
         }
         else {
             obj->type = TYPE_NULL;
-            error("Syntax Error at line %d: Expected } but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected } but got %s", tok()->lineno, tok()->lexeme);
         }
     }
     else {
         obj->type = TYPE_NULL;
-        error("Syntax Error at line %d: Expected { but got %s\n", tok()->lineno, tok()->lexeme);
+        error("Syntax Error at line %d: Expected { but got %s", tok()->lineno, tok()->lexeme);
     }
 }
 
@@ -687,7 +690,7 @@ void parse_aggregate_list(object_s *obj)
                     if(check.found) {
                         error(
                               "Error: Redeclaration of aggregate members within same \
-                              initializer not permitted: %s at line %u\n",
+                              initializer not permitted: %s at line %u",
                               exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
@@ -705,7 +708,7 @@ void parse_aggregate_list(object_s *obj)
             obj->child = make_scope(NULL, "_anonymous");
             break;
         default:
-            error("Syntax Error at line %d: Expected { string number identifier } or ) but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected { string number identifier } or ) but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -724,7 +727,7 @@ void parse_aggregate_list_(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        error("Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
+                        error("Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u", exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -740,7 +743,7 @@ void parse_aggregate_list_(object_s *obj)
         case TOK_TYPE_CLOSEPAREN:
             break;
         default:
-            error("Syntax Error at line %d: Expected , } or ) but got %s\n", tok()->lineno, tok()->lexeme);
+            error("Syntax Error at line %d: Expected , } or ) but got %s", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -799,7 +802,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 check.last = acc;
                 check.result = NULL;
                 check.lastfailed = false;
-                error("Error: Index Out of Bounds at line %u\n", acc->tok->lineno);
+                error("Error: Index Out of Bounds at line %u", acc->tok->lineno);
                 return check;
             }
             else if (acc->index == check.scope->size) {
@@ -809,7 +812,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.last = acc;
                 }
                 else {
-                    error("Error: Attempt to access uninitialized array element at line %u\n", acc->tok->lineno);
+                    error("Error: Attempt to access uninitialized array element at line %u", acc->tok->lineno);
                     check.found = false;
                     check.lastfailed = false;
                     check.last = acc;
@@ -894,7 +897,7 @@ void *net_node(void *arg)
     object_s *obj = arg;
     
     if(obj->child->size > 1) {
-        error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)\n", obj->tok->lineno);
+        error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)", obj->tok->lineno);
     }
     else {
         if(obj->child->object[0]->type == TYPE_STRING) {
@@ -902,11 +905,10 @@ void *net_node(void *arg)
             t->func = FNET_NODE;
             t->next = NULL;
             *(char **)(t + 1) = obj->child->object[0]->tok->lexeme;
-            printf("%s\n", *(char **)(t + 1));
             task_enqueue(t);
         }
         else {
-            error("Error at line %u: Expected string type argument for node(string).\n", obj->tok->lineno);
+            error("Error at line %u: Expected string type argument for node(string).", obj->tok->lineno);
             
         }
     }
