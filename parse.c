@@ -897,8 +897,9 @@ void *net_node(void *arg)
     t->func = FNET_NODE;
     t->next = NULL;
     
+    printf("%d\n", obj->child->size);
     if(obj->child->size > 1) {
-        error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)", obj->tok->lineno);
+        error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)\n", obj->tok->lineno);
     }
     else {
         if(obj->child->object[0]->type == TYPE_STRING) {
@@ -906,7 +907,8 @@ void *net_node(void *arg)
             task_enqueue(t);
         }
         else {
-            error("Error at line %u: Expected string type argument for node(string).", obj->tok->lineno);
+            error("Error at line %u: Expected string type argument for node(string).\n", obj->tok->lineno);
+            
         }
     }
     

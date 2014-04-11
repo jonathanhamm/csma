@@ -1,8 +1,8 @@
 #include "shared.h"
-#include <regex.h>
+#include <stdio.h>
 
-int main(void)
+int main(int argc, char *argv[])
 {
-    
+    printf("Successfully Started: %s\n", argv[2]);
     return 0;
 }
