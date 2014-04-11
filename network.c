@@ -73,13 +73,11 @@ void create_node(char *id)
     pid_t pid;
     char *argv[3] = {"client", id, NULL};
     
-    printf("name: %s\n", id);
-    
     pid = fork();
     
     if(pid) {
         sym_insert(&stations, id, (sym_data_u){.pid = pid});
-        waitpid(pid, &status, WNOHANG);
+        pause();
     }
     else if(pid < 0) {
         perror("Failed to create station process.");
