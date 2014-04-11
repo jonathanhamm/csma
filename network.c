@@ -5,6 +5,7 @@
 #include <math.h>
 
 #include <signal.h>
+#include <unistd.h>
 
 #include "parse.h"
 #include "network.h"
@@ -27,7 +28,6 @@ int main(int argc, char *argv[])
     }
     
     in = buf_init();
-   // return 0;
     
     printf("> ");
     while((c = getchar()) != EOF) {

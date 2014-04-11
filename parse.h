@@ -4,12 +4,18 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include "shared.h"
+
+#define SYM_TABLE_SIZE 53
+
 typedef struct buf_s buf_s;
 typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
 typedef enum tok_att_s tok_att_s;
+typedef struct sym_record_s sym_record_s;
+typedef struct sym_table_s sym_table_s;
 
-typedef struct event_s event_s;
+typedef struct task_s task_s;
 
 enum tok_types_e {
     TOK_TYPE_ID = 0,
@@ -53,12 +59,32 @@ struct token_s
     token_s *prev;
 };
 
-struct event_s
+struct task_s
 {
-    event_s *next;
-    char *src, *dst;
-    
+    funcs_e func;
+    task_s *next;
 };
+
+struct sym_record_s
+{
+    char *key;
+    union {
+        void *object;
+        pid_t pid;
+    };
+    sym_record_s *next;
+};
+
+struct sym_table_s
+{
+    sym_record_s *table[SYM_TABLE_SIZE];
+};
+
+struct {
+    task_s *head;
+    task_s *tail;
+}
+tqueue;
 
 extern void parse(char *src);
 
@@ -71,6 +97,13 @@ extern void buf_addstr(buf_s **b, char *str, size_t size);
 extern void buf_trim(buf_s **b);
 extern void buf_reset(buf_s **b);
 extern void buf_free(buf_s *b);
+
+extern void sym_insert(sym_table_s *table, char *key, void *object);
+extern sym_record_s *sym_lookup(sym_table_s *table, char *key);
+extern char *sym_get(sym_table_s *table, void *obj);
+
+extern void task_enqueue(task_s *t);
+extern task_s *task_dequeue(void);
 
 extern void *alloc(size_t size);
 extern void *allocz(size_t size);

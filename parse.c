@@ -13,7 +13,6 @@
 #include "parse.h"
 
 #define INIT_BUF_SIZE 256
-#define SYM_TABLE_SIZE 53
 #define N_FUNCS 6
 
 #define next_tok() (tokcurr = tokcurr->next)
@@ -21,8 +20,6 @@
 
 typedef enum type_e type_e;
 
-typedef struct sym_record_s sym_record_s;
-typedef struct sym_table_s sym_table_s;
 typedef struct object_s object_s;
 typedef struct exp_s exp_s;
 typedef struct scope_s scope_s;
@@ -31,15 +28,6 @@ typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
 typedef struct check_s check_s;
-
-enum funcs {
-    FNET_SEND,
-    FNET_NODE,
-    FNET_RAND,
-    FNET_SIZE,
-    FNET_KILL,
-    FNET_PRINT
-};
 
 enum type_e
 {
@@ -52,18 +40,6 @@ enum type_e
     TYPE_AGGREGATE,
     TYPE_NULL,
     TYPE_ANY
-};
-
-struct sym_record_s
-{
-    char *key;
-    void *object;
-    sym_record_s *next;
-};
-
-struct sym_table_s
-{
-    sym_record_s *table[SYM_TABLE_SIZE];
 };
 
 struct object_s
@@ -152,9 +128,6 @@ static void lex(char *src);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
 
-static void sym_insert(sym_table_s *table, char *key, void *object);
-static sym_record_s *sym_lookup(sym_table_s *table, char *key);
-static char *sym_get(sym_table_s *table, void *obj);
 static uint16_t hash_pjw(char *key);
 
 static void parse_statement(void);
@@ -896,7 +869,29 @@ void *net_send(void *arg)
 
 void *net_node(void *arg)
 {
+    task_s *t;
+    object_s *obj = arg;
     
+    t = alloc(sizeof(*t) + sizeof(char *));
+    t->func = FNET_NODE;
+    t->next = NULL;
+    
+    if(!obj->child)asm("hlt");
+    if(obj->child->size > 1) {
+        fprintf(stderr, "Error: Invalid number of arguments passed to function node at line %u. Expected node(string)", obj->tok->lineno);
+    }
+    else {
+        if(obj->child->object[0]->type == TYPE_STRING) {
+            *((char **)(t + 1)) = "hey";
+            task_enqueue(t);
+        }
+        else {
+            fprintf(stderr, "Error at line %u: Expected string type argument for node(string).", obj->tok->lineno);
+        }
+    }
+    
+    return NULL;
+    //task_enqueue(
 }
 
 void *net_rand(void *arg)
@@ -1165,6 +1160,22 @@ void buf_reset(buf_s **b)
 void buf_free(buf_s *b)
 {
     free(b);
+}
+
+void task_enqueue(task_s *t)
+{
+    if(tqueue.head)
+        tqueue.tail->next = t;
+    else
+        tqueue.head = t;
+    tqueue.tail = t;
+}
+
+task_s *task_dequeue(void)
+{
+    task_s *t = tqueue.head;
+    tqueue.head = tqueue.head->next;
+    return t;
 }
 
 void *alloc(size_t size)

@@ -7,7 +7,7 @@ a = {
     lol = {
         bob = node("wahaha"),
         woah = node(32),
-        omg = node(wut),
+        omg = node(3),
         4
     },
     bob = 3,
