@@ -10,6 +10,10 @@
 #include "parse.h"
 #include "network.h"
 
+static sym_table_s active;
+
+static void process_tasks(void);
+
 int main(int argc, char *argv[])
 {
     int c;
@@ -40,4 +44,18 @@ int main(int argc, char *argv[])
         }
     }
     buf_free(in);
+}
+
+void process_tasks(void)
+{
+    task_s *t;
+    
+    while((t = task_dequeue())) {
+        switch(t->func) {
+            case FNET_NODE:
+                
+            default:
+                break;
+        }
+    }
 }

@@ -191,7 +191,6 @@ void error(const char *fs, ...)
 {
     va_list args;
     
-    
     va_start(args, fs);
     vfprintf(stderr, fs, args);
     va_end(args);
@@ -425,7 +424,6 @@ void parse_idsuffix(access_list_s **acc)
                 (*acc)->next = alloc(sizeof(**acc));
                 *acc = (*acc)->next;
                 (*acc)->tok = tok();
-                
                 (*acc)->isindex = false;
                 (*acc)->next = NULL;
                 next_tok();
@@ -687,7 +685,10 @@ void parse_aggregate_list(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        error("Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u\n", exp.acc->tok->lexeme,  t->lineno);
+                        error(
+                              "Error: Redeclaration of aggregate members within same \
+                              initializer not permitted: %s at line %u\n",
+                              exp.acc->tok->lexeme,  t->lineno);
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -782,7 +783,7 @@ void scope_add(scope_s *scope, object_s obj, char *id)
     scope->size++;
     
     if(id)
-        sym_insert(&scope->table, id, obj_alloc);
+        sym_insert(&scope->table, id, (sym_data_u){.ptr = obj_alloc});
 }
 
 check_s check_entry(scope_s *root, access_list_s *acc)
@@ -820,7 +821,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
         else {
             rec = sym_lookup(&check.scope->table, acc->tok->lexeme);
             if(rec)
-                check.result = rec->object;
+                check.result = rec->data.ptr;
             else {
                 check.found = false;
                 check.last = acc;
@@ -1043,7 +1044,7 @@ void free_tokens(void)
     }
 }
 
-void sym_insert(sym_table_s *table, char *key, void *object)
+void sym_insert(sym_table_s *table, char *key, sym_data_u data)
 {
     uint16_t index = hash_pjw(key);
     sym_record_s *rec = alloc(sizeof(*rec));
@@ -1051,7 +1052,7 @@ void sym_insert(sym_table_s *table, char *key, void *object)
     rec->next = table->table[index];
     table->table[index] = rec;
     rec->key = key;
-    rec->object = object;
+    rec->data = data;
     rec->next = NULL;
 }
 
@@ -1075,7 +1076,7 @@ char *sym_get(sym_table_s *table, void *obj)
     for(i = 0; i < SYM_TABLE_SIZE; i++) {
         if(*rec) {
             for(ref = *rec; ref; ref = ref->next) {
-                if(ref->object == obj)
+                if(ref->data.ptr == obj)
                     return ref->key;
             }
         }
@@ -1185,7 +1186,7 @@ void task_enqueue(task_s *t)
         tqueue.tail->next = t;
     else
         tqueue.head = t;
-    tqueue.tail = t;    
+    tqueue.tail = t;
 }
 
 task_s *task_dequeue(void)

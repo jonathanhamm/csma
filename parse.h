@@ -12,6 +12,7 @@ typedef struct buf_s buf_s;
 typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
 typedef enum tok_att_s tok_att_s;
+typedef union sym_data_u sym_data_u;
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
 
@@ -65,13 +66,16 @@ struct task_s
     task_s *next;
 };
 
+union sym_data_u
+{
+    void *ptr;
+    pid_t pid;
+};
+
 struct sym_record_s
 {
     char *key;
-    union {
-        void *object;
-        pid_t pid;
-    };
+    sym_data_u data;
     sym_record_s *next;
 };
 
@@ -98,7 +102,7 @@ extern void buf_trim(buf_s **b);
 extern void buf_reset(buf_s **b);
 extern void buf_free(buf_s *b);
 
-extern void sym_insert(sym_table_s *table, char *key, void *object);
+extern void sym_insert(sym_table_s *table, char *key, sym_data_u data);
 extern sym_record_s *sym_lookup(sym_table_s *table, char *key);
 extern char *sym_get(sym_table_s *table, void *obj);
 
