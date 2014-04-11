@@ -191,7 +191,11 @@ void error(const char *fs, ...)
 {
     va_list args;
     
+    
+    va_start(args, fs);
     vfprintf(stderr, fs, args);
+    va_end(args);
+    
     parse_success = false;
 }
 
@@ -892,7 +896,6 @@ void *net_node(void *arg)
     t->func = FNET_NODE;
     t->next = NULL;
     
-    if(!obj->child)asm("hlt");
     if(obj->child->size > 1) {
         error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)", obj->tok->lineno);
     }
@@ -1182,7 +1185,7 @@ void task_enqueue(task_s *t)
         tqueue.tail->next = t;
     else
         tqueue.head = t;
-    tqueue.tail = t;
+    tqueue.tail = t;    
 }
 
 task_s *task_dequeue(void)
