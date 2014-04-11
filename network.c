@@ -14,7 +14,7 @@
 
 //static volatile sig_atomic_t got_SIG
 static int pipe_fd[2];
-static sym_table_s stations;
+static sym_table_s station_table;
 static void process_tasks(void);
 static void create_node(char *id);
 
@@ -82,23 +82,30 @@ void create_node(char *id)
     char *argv[4];
     char fd_buf[2*sizeof(int)+2];
     
-    sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
-    argv[0] = CLIENT_PATH;
-    argv[1] = id;
-    argv[2] = fd_buf;
-    argv[3] = NULL;
     
-    pid = fork();
+    if(!sym_lookup(&station_table, id)) {
+
     
-    if(pid) {
-        sym_insert(&stations, id, (sym_data_u){.pid = pid});
-    }
-    else if(pid < 0) {
-        perror("Failed to create station process.");
-        exit(EXIT_FAILURE);
+        sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
+        argv[0] = CLIENT_PATH;
+        argv[1] = id;
+        argv[2] = fd_buf;
+        argv[3] = NULL;
+    
+        pid = fork();
+    
+        if(pid) {
+            sym_insert(&station_table, id, (sym_data_u){.pid = pid});
+        }
+        else if(pid < 0) {
+            perror("Failed to create station process.");
+            exit(EXIT_FAILURE);
+        }
+        else {
+            status = execv(CLIENT_PATH, argv);
+        }
     }
     else {
-        status = execv(CLIENT_PATH, argv);
-        
+        error("Node %s already exists", id);
     }
 }

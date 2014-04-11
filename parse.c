@@ -127,7 +127,6 @@ static func_s funcs[] = {
     {"print", TYPE_ANY}
 };
 
-static void error(const char *fs, ...);
 static void lex(char *src);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
@@ -1087,6 +1086,30 @@ char *sym_get(sym_table_s *table, void *obj)
     }
     return NULL;
 }
+
+void sym_delete(sym_table_s *table, char *key)
+{
+    uint16_t index = hash_pjw(key);
+    sym_record_s *last = NULL;
+    sym_record_s *rec = table->table[index];
+
+    if(rec) {
+        last = rec;
+        while(rec) {
+            if(!strcmp(rec->key, key)) {
+                if(last)
+                    last->next = rec->next;
+                else
+                    table->table[index] = rec->next;
+                free(rec);
+                return;
+            }
+            last = rec;
+            rec = rec->next;
+        }
+    }
+}
+
 
 uint16_t hash_pjw(char *key)
 {

@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     }
     sscanf(argv[2], "%d.%d", &pipe_fd[0], &pipe_fd[1]);
     printf("Successfully Started Station: %s\n", argv[1]);
-    kill(getppid(), SIGUSR1);
+    //kill(getppid(), SIGUSR1);
     
     /*while(1) {
         printf("Hello from %s\n", argv[1]);

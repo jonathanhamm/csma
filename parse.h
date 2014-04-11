@@ -92,6 +92,7 @@ tqueue;
 
 extern bool parse(char *src);
 
+extern void error(const char *fs, ...);
 extern char *readfile(const char *fname);
 extern void closefile(void);
 
@@ -105,6 +106,7 @@ extern void buf_free(buf_s *b);
 extern void sym_insert(sym_table_s *table, char *key, sym_data_u data);
 extern sym_record_s *sym_lookup(sym_table_s *table, char *key);
 extern char *sym_get(sym_table_s *table, void *obj);
+extern void sym_delete(sym_table_s *table, char *key);
 
 extern void task_enqueue(task_s *t);
 extern task_s *task_dequeue(void);
