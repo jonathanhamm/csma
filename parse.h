@@ -86,7 +86,7 @@ struct {
 }
 tqueue;
 
-extern void parse(char *src);
+extern bool parse(char *src);
 
 extern char *readfile(const char *fname);
 extern void closefile(void);
