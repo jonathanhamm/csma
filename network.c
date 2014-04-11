@@ -14,22 +14,27 @@ int main(int argc, char *argv[])
     int c;
     char *src;
     buf_s *in;
-    char buf[100] = {0};
     
     if(argc > 1) {
-        parse(argv[1]);
+        src = readfile(argv[1]);
+        parse(src);
+        closefile();
     }
-        
-    parse("test");
+    else {
+        src = readfile("test");
+        parse(src);
+        closefile();
+    }
     
     in = buf_init();
-    return 0;
+   // return 0;
     
     printf("> ");
     while((c = getchar()) != EOF) {
         buf_addc(&in, c);
         if(c == '\n') {
             buf_addc(&in, '\0');
+            parse(in->buf);
             buf_reset(&in);
             printf("> ");
         }

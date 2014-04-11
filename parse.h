@@ -2,6 +2,7 @@
 #define PARSE_H_
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef struct buf_s buf_s;
 typedef struct token_s token_s;
@@ -47,6 +48,7 @@ struct token_s
     tok_att_s att;
     char *lexeme;
     int lineno;
+    bool marked;
     token_s *next;
     token_s *prev;
 };
@@ -58,7 +60,10 @@ struct event_s
     
 };
 
-extern void parse(const char *file);
+extern void parse(char *src);
+
+extern char *readfile(const char *fname);
+extern void closefile(void);
 
 extern buf_s *buf_init(void);
 extern void buf_addc(buf_s **b, int c);

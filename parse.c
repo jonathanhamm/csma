@@ -1,9 +1,7 @@
 /* Parser for Reading Network File */
-#include "parse.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdbool.h>
 #include <assert.h>
 #include <stdint.h>
 
@@ -11,6 +9,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+#include "parse.h"
 
 #define INIT_BUF_SIZE 256
 #define SYM_TABLE_SIZE 53
@@ -148,8 +148,7 @@ static func_s funcs[] = {
     {"print", TYPE_ANY}
 };
 
-static void readfile(const char *name);
-static void lex(const char *name);
+static void lex(char *src);
 static void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno);
 static void print_tokens(void);
 
@@ -186,7 +185,7 @@ static void free_tokens(void);
 
 static char *strclone(char *str);
 
-void parse(const char *file)
+void parse(char *src)
 {
 
     /* Link Language Functions */
@@ -197,19 +196,23 @@ void parse(const char *file)
     funcs[FNET_KILL].func = net_kill;
     funcs[FNET_PRINT].func = net_print;
     
-    lex(file);
+    lex(src);
     tokcurr = head;
-    scope_root = make_scope(NULL, "_root");
+    if(!scope_root)
+        scope_root = make_scope(NULL, "_root");
     parse_statement();
+    free_tokens();
+    head = NULL;
+    tokcurr = NULL;
+    tail = NULL;
 }
 
-void lex(const char *name)
+void lex(char *src)
 {
     int lineno = 1;
     char *bptr, *fptr, c;
     
-    readfile(name);
-    bptr = fptr = source;
+    bptr = fptr = src;
     
     if(*fptr == '#') {
         while(*fptr && *fptr != '\n')
@@ -323,8 +326,6 @@ void lex(const char *name)
         }
     }
     add_token("EOF", TOK_TYPE_EOF, TOK_ATT_DEFAULT, lineno);
-    munmap(source, fstats.st_size);
-    close(source_fd);
 }
 
 void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
@@ -337,6 +338,7 @@ void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
     t->lexeme = strclone(lexeme);
     strcpy(t->lexeme, lexeme);
     t->next = NULL;
+    t->marked = false;
     
     if(head) {
         t->prev = tail;
@@ -366,6 +368,7 @@ void parse_statement(void)
     
     if(tok()->type == TOK_TYPE_ID) {
         opt.exp.obj.tok = id = tok();
+        id->marked = true;
         list = parse_id();
         opt = parse_idfollow(list);
         
@@ -497,9 +500,8 @@ void parse_index(access_list_s **acc)
                 parse_index(acc);
             }
             else {
-                printf("Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
+                fprintf(stderr, "Syntax Error at line %d: Expected [ but got %s\n", tok()->lineno, tok()->lexeme);
             }
-            //free_accesslist(exp.acc);
             break;
         case TOK_TYPE_COMMA:
         case TOK_TYPE_CLOSEBRACE:
@@ -512,7 +514,7 @@ void parse_index(access_list_s **acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            printf("Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s\n", tok()->lineno, tok()->lexeme);
+            fprintf(stderr, "Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
 }
@@ -597,6 +599,7 @@ exp_s parse_expression(void)
     switch(tok()->type) {
         case TOK_TYPE_NUM:
             exp.obj.tok = tok();
+            exp.obj.tok->marked = true;
             if(tok()->att == TOK_ATT_INT)
                 exp.obj.type = TYPE_INT;
             else if(tok()->att == TOK_ATT_REAL)
@@ -607,6 +610,7 @@ exp_s parse_expression(void)
             break;
         case TOK_TYPE_STRING:
             exp.obj.tok = tok();
+            exp.obj.tok->marked = true;
             exp.obj.type = TYPE_STRING;
             next_tok();
             break;
@@ -630,6 +634,7 @@ exp_s parse_expression(void)
                         else
                             exp.obj.type = TYPE_NULL;
                         exp.obj.tok = check.last->tok;
+                        exp.obj.tok->marked = true;
                         exp.obj.islazy = false;
                     }
                     else {
@@ -641,6 +646,7 @@ exp_s parse_expression(void)
             break;
         case TOK_TYPE_OPENBRACE:
             exp.obj.tok = tok();
+            exp.obj.tok->marked = true;
             exp.obj.type = TYPE_AGGREGATE;
             parse_aggregate(&exp.obj);
             break;
@@ -743,6 +749,14 @@ void parse_aggregate_list_(object_s *obj)
             fprintf(stderr, "Syntax Error at line %d: Expected , } or ) but got %s\n", tok()->lineno, tok()->lexeme);
             break;
     }
+}
+
+token_s *tok_clone(token_s *t)
+{
+    token_s *clone = alloc(sizeof(*clone));
+    
+    *clone = *t;
+    return clone;
 }
 
 scope_s *make_scope(scope_s *parent, char *id)
@@ -1001,10 +1015,17 @@ void free_tokens(void)
     token_s *tb;
     
     while(head) {
-        tb = head->next;
-        free(head->lexeme);
-        free(head);
-        head = tb;
+        if(head->marked) {
+            head->next = NULL;
+            head->prev = NULL;
+            head = head->next;
+        }
+        else {
+            tb = head->next;
+            free(head->lexeme);
+            free(head);
+            head = tb;
+        }
     }
 }
 
@@ -1062,11 +1083,13 @@ uint16_t hash_pjw(char *key)
     return (uint16_t)(h % SYM_TABLE_SIZE);
 }
 
-void readfile(const char *name)
+
+char *readfile(const char *fname)
 {
+    char *src;
     int fd, status;
     
-    fd = open(name, O_RDWR);
+    fd = open(fname, O_RDWR);
     if(fd < 0) {
         perror("Failed to open file");
         exit(EXIT_FAILURE);
@@ -1077,11 +1100,18 @@ void readfile(const char *name)
         perror("Failed to obtain file info");
         exit(EXIT_FAILURE);
     }
-    source = mmap(0, fstats.st_size, PROT_WRITE, MAP_PRIVATE, fd, 0);
+    src = mmap(0, fstats.st_size, PROT_WRITE, MAP_PRIVATE, fd, 0);
     if(source == MAP_FAILED) {
         perror("Failed to read file");
         exit(EXIT_FAILURE);
     }
+    return src;
+}
+
+void closefile(void)
+{
+    munmap(source, fstats.st_size);
+    close(source_fd);
 }
 
 buf_s *buf_init(void)
@@ -1130,6 +1160,11 @@ void buf_reset(buf_s **b)
     *b = ralloc(*b, sizeof(**b) + INIT_BUF_SIZE);
     (*b)->bsize = INIT_BUF_SIZE;
     (*b)->size = 0;
+}
+
+void buf_free(buf_s *b)
+{
+    free(b);
 }
 
 void *alloc(size_t size)
