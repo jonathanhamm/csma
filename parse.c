@@ -893,17 +893,15 @@ void *net_node(void *arg)
     task_s *t;
     object_s *obj = arg;
     
-    t = alloc(sizeof(*t) + sizeof(char *));
-    t->func = FNET_NODE;
-    t->next = NULL;
-    
-    printf("%d\n", obj->child->size);
     if(obj->child->size > 1) {
         error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)\n", obj->tok->lineno);
     }
     else {
         if(obj->child->object[0]->type == TYPE_STRING) {
-            *((char **)(t + 1)) = "hey";
+            t = alloc(sizeof(*t) + sizeof(char *));
+            t->func = FNET_NODE;
+            t->next = NULL;
+            *(char **)(t + 1) = "hey";
             task_enqueue(t);
         }
         else {
@@ -1194,7 +1192,8 @@ void task_enqueue(task_s *t)
 task_s *task_dequeue(void)
 {
     task_s *t = tqueue.head;
-    tqueue.head = tqueue.head->next;
+    if(t)
+        tqueue.head = tqueue.head->next;
     return t;
 }
 

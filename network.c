@@ -31,6 +31,8 @@ int main(int argc, char *argv[])
         parse(src);
         closefile();
     }
+    process_tasks();
+
     
     in = buf_init();
     
@@ -53,7 +55,7 @@ void process_tasks(void)
     task_s *t;
     
     while((t = task_dequeue())) {
-        printf("pointer: %p\n", t);
+        printf("name: %s\n", (char *)(t + 1));
         switch(t->func) {
             case FNET_NODE:
                 create_node((char *)(t + 1));
