@@ -39,6 +39,7 @@ enum type_e
     TYPE_NODE,
     TYPE_ARGLIST,
     TYPE_AGGREGATE,
+    TYPE_ERROR,
     TYPE_NULL,
     TYPE_ANY
 };
@@ -142,8 +143,8 @@ static optfollow_s parse_optfollow(access_list_s *acc);
 static exp_s parse_assignment(void);
 static exp_s parse_expression(void);
 static void parse_aggregate(object_s *obj);
-static void parse_aggregate_list(object_s *obj);
-static void parse_aggregate_list_(object_s *obj);
+static bool parse_aggregate_list(object_s *obj);
+static bool parse_aggregate_list_(object_s *obj);
 
 static scope_s *make_scope(scope_s *parent, char *id);
 static void scope_add(scope_s *scope, object_s obj, char *id);
@@ -368,11 +369,17 @@ void parse_statement(void)
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
                 if(!function_check(check, &opt.exp.obj)) {
-                    error("Error: Call to unkown function %s at line %u", check.last->tok->lexeme, check.last->tok->lineno);
+                    error(
+                          "Error: Call to unkown function %s at line %u",
+                          check.last->tok->lexeme, check.last->tok->lineno
+                          );
                 }
             }
             else {
-                error("Error near line %d: Access to undeclared object in %s", id->lineno, check.last->tok->lexeme);
+                error(
+                      "Error near line %d: Access to undeclared object in %s",
+                      id->lineno, check.last->tok->lexeme
+                      );
             }
         }
         else {
@@ -383,17 +390,22 @@ void parse_statement(void)
                 scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
-                error("Error near line %d: Access to undeclared object in %s", id->lineno, check.last->tok->lexeme);
+                error(
+                      "Error near line %d: Access to undeclared object in %s",
+                      id->lineno, check.last->tok->lexeme
+                      );
             }
         }
-        
         parse_statement();
     }
     else if(tok()->type == TOK_TYPE_EOF) {
         
     }
     else {
-        error("Syntax Error at line %d: Expected EOF but got %s", tok()->lineno, tok()->lexeme);
+        error(
+              "Syntax Error at line %d: Expected EOF but got %s",
+              tok()->lineno, tok()->lexeme
+              );
     }
 }
 
@@ -412,7 +424,10 @@ access_list_s *parse_id(void)
         parse_idsuffix(&acc);
     }
     else {
-        error("Syntax Error at line %d: Expected identifier but got %s", tok()->lineno, tokcurr->lexeme);
+        error(
+              "Syntax Error at line %d: Expected identifier but got %s",
+              tok()->lineno, tokcurr->lexeme
+              );
     }
     return list;
 }
@@ -432,7 +447,10 @@ void parse_idsuffix(access_list_s **acc)
                 parse_idsuffix(acc);
             }
             else {
-                error("Syntax Error at line %d: Expected identifier, but got %s", tok()->lineno, tok()->lexeme);
+                error(
+                      "Syntax Error at line %d: Expected identifier, but got %s",
+                      tok()->lineno, tok()->lexeme
+                      );
             }
             break;
         case TOK_TYPE_OPENBRACE:
@@ -448,7 +466,11 @@ void parse_idsuffix(access_list_s **acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected . { } string number = += ) ( identifier , or EOF but got %s", tok()->lineno, tok()->lexeme);
+            error(
+                  "Syntax Error at line %d: Expected . { } string number = += ) ( \
+                  identifier , or EOF but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
             break;
     }
 }
@@ -472,7 +494,11 @@ void parse_index(access_list_s **acc)
                     (*acc)->next = NULL;
                 }
                 else {
-                    error("Error: invalid Type Used to index aggregate object near line %d. Expected integer but got ", t->lineno);
+                    error(
+                          "Error: invalid Type Used to index aggregate object near line %d. \
+                          Expected integer but got ",
+                          t->lineno
+                          );
                     switch(exp.obj.type) {
                         case TYPE_REAL:
                             puts("real type.");
@@ -492,7 +518,10 @@ void parse_index(access_list_s **acc)
                 parse_index(acc);
             }
             else {
-                error("Syntax Error at line %d: Expected [ but got %s", tok()->lineno, tok()->lexeme);
+                error(
+                      "Syntax Error at line %d: Expected [ but got %s",
+                      tok()->lineno, tok()->lexeme
+                      );
             }
             break;
         case TOK_TYPE_COMMA:
@@ -506,13 +535,18 @@ void parse_index(access_list_s **acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected [ , } = += ) ( ] . identifier or EOF but got %s", tok()->lineno, tok()->lexeme);
+            error(
+                  "Syntax Error at line %d: Expected [ , } = += ) ( ] . \
+                  identifier or EOF but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
             break;
     }
 }
 
 optfollow_s parse_idfollow(access_list_s *acc)
 {
+    bool result;
     optfollow_s opt;
     
     switch(tok()->type) {
@@ -521,12 +555,17 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
             opt.exp.acc = NULL;
-            parse_aggregate_list(&opt.exp.obj);
+            result = parse_aggregate_list(&opt.exp.obj);
+            if(!result)
+                opt.exp.obj.type = TYPE_ERROR;
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
             else {
-                error("Syntax Error at line %d: Exprected ) but got %s", tok()->lineno,  tok()->lexeme);
+                error(
+                      "Syntax Error at line %d: Exprected ) but got %s",
+                      tok()->lineno,  tok()->lexeme
+                      );
             }
             break;
         case TOK_TYPE_ASSIGNOP:
@@ -534,7 +573,13 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp = parse_assignment();
             break;
         default:
-            error("Syntax Error at line %d: Expected ( = or += but got: %s", tok()->lineno, tok()->lexeme);
+            opt.isassign = false;
+            opt.exp.acc = NULL;
+            opt.exp.obj.type = TYPE_ERROR;
+            error(
+                  "Syntax Error at line %d: Expected ( = or += but got: %s",
+                  tok()->lineno, tok()->lexeme
+                  );
             break;
     }
     return opt;
@@ -558,10 +603,14 @@ optfollow_s parse_optfollow(access_list_s *acc)
         case TOK_TYPE_EOF:
             break;
         default:
-            error("Syntax Error at line %d: Expected = += ( } { string number ) id , or EOF but got %s", tok()->lineno, tok()->lexeme);
+            error(
+                  "Syntax Error at line %d: Expected = += ( } { string number ) \
+                  id , or EOF but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
             break;
     }
-    return (optfollow_s){.isassign = false, .exp = {NULL, .obj = {.type = TYPE_NULL}}};
+    return (optfollow_s){.isassign = false, .exp = {NULL, .obj = {.type = TYPE_ERROR}}};
 }
 
 exp_s parse_assignment(void)
@@ -574,8 +623,11 @@ exp_s parse_assignment(void)
     }
     else {
         exp.acc = NULL;
-        exp.obj.type = TYPE_NULL;
-        error("Syntax Error at line %d: Expected += or = but got %s", tok()->lineno, tok()->lexeme);
+        exp.obj.type = TYPE_ERROR;
+        error(
+              "Syntax Error at line %d: Expected += or = but got %s",
+              tok()->lineno, tok()->lexeme
+              );
     }
     return exp;
 }
@@ -624,14 +676,17 @@ exp_s parse_expression(void)
                         if(function_check(check, &opt.exp.obj))
                             exp.obj.type = TYPE_ANY;
                         else
-                            exp.obj.type = TYPE_NULL;
+                            exp.obj.type = TYPE_ERROR;
                         exp.obj.tok = check.last->tok;
                         exp.obj.tok->marked = true;
                         exp.obj.islazy = false;
                     }
                     else {
-                        exp.obj.type = TYPE_NULL;
-                        error("Error: access to undeclared identifier %s at line %u", check.last->tok->lexeme, check.last->tok->lineno);
+                        exp.obj.type = TYPE_ERROR;
+                        error(
+                              "Error: access to undeclared identifier %s at line %u",
+                              check.last->tok->lexeme, check.last->tok->lineno
+                              );
                     }
 
                 }
@@ -644,7 +699,11 @@ exp_s parse_expression(void)
             parse_aggregate(&exp.obj);
             break;
         default:
-            error("Syntax Error at line %d: Expected number string identifer or { but got %s", tok()->lineno, tok()->lexeme);
+            error(
+                  "Syntax Error at line %d: Expected number string \
+                  identifer or { but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
             break;
     }
     return exp;
@@ -659,17 +718,23 @@ void parse_aggregate(object_s *obj)
             next_tok();
         }
         else {
-            obj->type = TYPE_NULL;
-            error("Syntax Error at line %d: Expected } but got %s", tok()->lineno, tok()->lexeme);
+            obj->type = TYPE_ERROR;
+            error(
+                  "Syntax Error at line %d: Expected } but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
         }
     }
     else {
-        obj->type = TYPE_NULL;
-        error("Syntax Error at line %d: Expected { but got %s", tok()->lineno, tok()->lexeme);
+        obj->type = TYPE_ERROR;
+        error(
+              "Syntax Error at line %d: Expected { but got %s",
+              tok()->lineno, tok()->lexeme
+              );
     }
 }
 
-void parse_aggregate_list(object_s *obj)
+bool parse_aggregate_list(object_s *obj)
 {
     exp_s exp;
     check_s check;
@@ -700,19 +765,24 @@ void parse_aggregate_list(object_s *obj)
             else {
                 scope_add(obj->child, exp.obj, NULL);
             }
-            parse_aggregate_list_(obj);
+            return parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
             obj->child = make_scope(NULL, "_anonymous");
             break;
         default:
-            error("Syntax Error at line %d: Expected { string number identifier } or ) but got %s", tok()->lineno, tok()->lexeme);
-            break;
+            error(
+                  "Syntax Error at line %d: Expected { string number identifier } \
+                  or ) but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
+            return false;
     }
+    return true;
 }
 
-void parse_aggregate_list_(object_s *obj)
+bool parse_aggregate_list_(object_s *obj)
 {
     exp_s exp;
     check_s check;
@@ -726,7 +796,11 @@ void parse_aggregate_list_(object_s *obj)
                 if(!exp.acc->next) {
                     check = check_entry(obj->child, exp.acc);
                     if(check.found) {
-                        error("Error: Redeclaration of aggregate members within same initializer not permitted: %s at line %u", exp.acc->tok->lexeme,  t->lineno);
+                        error(
+                              "Error: Redeclaration of aggregate members within same initializer \
+                              not permitted: %s at line %u",
+                              exp.acc->tok->lexeme,  t->lineno
+                              );
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -736,15 +810,19 @@ void parse_aggregate_list_(object_s *obj)
             else {
                 scope_add(obj->child, exp.obj, NULL);
             }
-            parse_aggregate_list_(obj);
+            return parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
             break;
         default:
-            error("Syntax Error at line %d: Expected , } or ) but got %s", tok()->lineno, tok()->lexeme);
-            break;
+            error(
+                  "Syntax Error at line %d: Expected , } or ) but got %s",
+                  tok()->lineno, tok()->lexeme
+                  );
+            return false;
     }
+    return true;
 }
 
 token_s *tok_clone(token_s *t)
@@ -777,15 +855,17 @@ void scope_add(scope_s *scope, object_s obj, char *id)
 {
     object_s *obj_alloc;
     
-    scope->object = ralloc(scope->object, (scope->size + 1)*sizeof(*scope->object));
-    obj_alloc = alloc(sizeof(obj));
-    
-    *obj_alloc = obj;
-    scope->object[scope->size] = obj_alloc;
-    scope->size++;
-    
-    if(id)
-        sym_insert(&scope->table, id, (sym_data_u){.ptr = obj_alloc});
+    if(obj.type != TYPE_ERROR) {
+        scope->object = ralloc(scope->object, (scope->size + 1)*sizeof(*scope->object));
+        obj_alloc = alloc(sizeof(obj));
+        
+        *obj_alloc = obj;
+        scope->object[scope->size] = obj_alloc;
+        scope->size++;
+        
+        if(id)
+            sym_insert(&scope->table, id, (sym_data_u){.ptr = obj_alloc});
+    }
 }
 
 check_s check_entry(scope_s *root, access_list_s *acc)
@@ -811,7 +891,10 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.last = acc;
                 }
                 else {
-                    error("Error: Attempt to access uninitialized array element at line %u", acc->tok->lineno);
+                    error(
+                          "Error: Attempt to access uninitialized array element at line %u",
+                          acc->tok->lineno
+                          );
                     check.found = false;
                     check.lastfailed = false;
                     check.last = acc;
@@ -896,7 +979,11 @@ void *net_node(void *arg)
     object_s *obj = arg;
     
     if(obj->child->size > 1) {
-        error("Error: Invalid number of arguments passed to function node at line %u. Expected node(string)", obj->tok->lineno);
+        error(
+              "Error: Invalid number of arguments passed to function node at line %u. \
+              Expected node(string)",
+              obj->tok->lineno
+             );
     }
     else {
         if(obj->child->object[0]->type == TYPE_STRING) {
@@ -907,7 +994,10 @@ void *net_node(void *arg)
             task_enqueue(t);
         }
         else {
-            error("Error at line %u: Expected string type argument for node(string).", obj->tok->lineno);
+            error(
+                  "Error at line %u: Expected string type argument for node(string).",
+                  obj->tok->lineno
+                  );
             
         }
     }
@@ -1007,6 +1097,8 @@ void print_object(void *object)
             break;
         case TYPE_NULL:
             printf("null");
+            break;
+        case TYPE_ERROR:
             break;
         case TYPE_ARGLIST:
         default:
@@ -1109,7 +1201,6 @@ void sym_delete(sym_table_s *table, char *key)
         }
     }
 }
-
 
 uint16_t hash_pjw(char *key)
 {

@@ -57,6 +57,8 @@ int main(int argc, char *argv[])
         }
     }
     buf_free(in);
+    
+    exit(EXIT_SUCCESS);
 }
 
 void process_tasks(void)
@@ -82,10 +84,7 @@ void create_node(char *id)
     char *argv[4];
     char fd_buf[2*sizeof(int)+2];
     
-    
     if(!sym_lookup(&station_table, id)) {
-
-    
         sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
