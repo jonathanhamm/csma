@@ -739,6 +739,7 @@ bool parse_aggregate_list(object_s *obj)
     exp_s exp;
     check_s check;
     token_s *t;
+    bool status = true;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
@@ -755,7 +756,9 @@ bool parse_aggregate_list(object_s *obj)
                         error(
                               "Error: Redeclaration of aggregate members within same \
                               initializer not permitted: %s at line %u",
-                              exp.acc->tok->lexeme,  t->lineno);
+                              exp.acc->tok->lexeme,  t->lineno
+                              );
+                        status = false;
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -765,7 +768,9 @@ bool parse_aggregate_list(object_s *obj)
             else {
                 scope_add(obj->child, exp.obj, NULL);
             }
-            return parse_aggregate_list_(obj);
+            if(exp.obj.type == TYPE_ERROR)
+                status = false;
+            return status && parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -787,6 +792,7 @@ bool parse_aggregate_list_(object_s *obj)
     exp_s exp;
     check_s check;
     token_s *t;
+    bool status = true;
     
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
@@ -801,6 +807,7 @@ bool parse_aggregate_list_(object_s *obj)
                               not permitted: %s at line %u",
                               exp.acc->tok->lexeme,  t->lineno
                               );
+                        status = false;
                     }
                     else {
                         scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
@@ -810,7 +817,9 @@ bool parse_aggregate_list_(object_s *obj)
             else {
                 scope_add(obj->child, exp.obj, NULL);
             }
-            return parse_aggregate_list_(obj);
+            if(exp.obj.type == TYPE_ERROR)
+                status = false;
+            return status && parse_aggregate_list_(obj);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -945,24 +954,26 @@ bool function_check(check_s check, object_s *args)
     int i;
     char *str = check.last->tok->lexeme;
     
-    for(i = 0; i < N_FUNCS; i++) {
-        if(!strcmp(funcs[i].name, str)) {
-            switch(funcs[i].type) {
-                case TYPE_NULL:
-                   // if(check. != global) {
-                      //  fprintf(stderr, "Cannot call function %s on object types.\n", str);
-                    //}
-                    funcs[i].func(args);
-                    break;
-                case TYPE_ANY:
-                    funcs[i].func(args);
-                    break;
-                default:
-                    //if(funcs[i].type == check.last)
+    if(args->type != TYPE_ERROR) {
+        for(i = 0; i < N_FUNCS; i++) {
+            if(!strcmp(funcs[i].name, str)) {
+                switch(funcs[i].type) {
+                    case TYPE_NULL:
+                       // if(check. != global) {
+                          //  fprintf(stderr, "Cannot call function %s on object types.\n", str);
+                        //}
+                        funcs[i].func(args);
+                        break;
+                    case TYPE_ANY:
+                        funcs[i].func(args);
+                        break;
+                    default:
+                        //if(funcs[i].type == check.last)
 
-                    break;
+                        break;
+                }
+                return true;
             }
-            return true;
         }
     }
     return false;
