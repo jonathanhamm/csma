@@ -29,6 +29,8 @@ typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
 typedef struct check_s check_s;
+typedef struct arg_s arg_s;
+typedef struct arglist_s arglist_s;
 
 enum type_e
 {
@@ -106,6 +108,20 @@ struct check_s
     scope_s *scope;
 };
 
+struct arg_s
+{
+    char *name;
+    object_s obj;
+    arg_s *next;
+};
+
+struct arglist_s
+{
+    int size;
+    arg_s *head;
+    arg_s *tail;
+};
+
 static token_s *head;
 static token_s *tokcurr;
 static token_s *tail;
@@ -143,8 +159,8 @@ static optfollow_s parse_optfollow(access_list_s *acc);
 static exp_s parse_assignment(void);
 static exp_s parse_expression(void);
 static void parse_aggregate(object_s *obj);
-static bool parse_aggregate_list(object_s *obj);
-static bool parse_aggregate_list_(object_s *obj);
+static void parse_aggregate_list(object_s *obj, arglist_s **args);
+static void parse_aggregate_list_(object_s *obj, arglist_s *args);
 
 static scope_s *make_scope(scope_s *parent, char *id);
 static void scope_add(scope_s *scope, object_s obj, char *id);
@@ -546,8 +562,8 @@ void parse_index(access_list_s **acc)
 
 optfollow_s parse_idfollow(access_list_s *acc)
 {
-    bool result;
     optfollow_s opt;
+    arglist_s **args = NULL;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
@@ -555,9 +571,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
             opt.exp.acc = NULL;
-            result = parse_aggregate_list(&opt.exp.obj);
-            if(!result)
-                opt.exp.obj.type = TYPE_ERROR;
+            parse_aggregate_list(NULL, args);
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -713,7 +727,7 @@ void parse_aggregate(object_s *obj)
 {
     if(tok()->type == TOK_TYPE_OPENBRACE) {
         next_tok();
-        parse_aggregate_list(obj);
+        parse_aggregate_list(obj, NULL);
         if(tok()->type == TOK_TYPE_CLOSEBRACE) {
             next_tok();
         }
@@ -734,12 +748,11 @@ void parse_aggregate(object_s *obj)
     }
 }
 
-bool parse_aggregate_list(object_s *obj)
+void parse_aggregate_list(object_s *obj, arglist_s **args)
 {
     exp_s exp;
     check_s check;
     token_s *t;
-    bool status = true;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
@@ -748,29 +761,36 @@ bool parse_aggregate_list(object_s *obj)
         case TOK_TYPE_ID:
             t = tok();
             exp = parse_expression();
-            obj->child = make_scope(NULL, "_anonymous");
-            if(exp.acc) {
-                if(!exp.acc->next) {
-                    check = check_entry(obj->child, exp.acc);
-                    if(check.found) {
-                        error(
-                              "Error: Redeclaration of aggregate members within same \
-                              initializer not permitted: %s at line %u",
-                              exp.acc->tok->lexeme,  t->lineno
-                              );
-                        status = false;
+            if(obj) {
+                obj->child = make_scope(NULL, "_anonymous");
+                if(exp.acc) {
+                    if(!exp.acc->next) {
+                        check = check_entry(obj->child, exp.acc);
+                        if(check.found) {
+                            error(
+                                  "Error: Redeclaration of aggregate members within same \
+                                  initializer not permitted: %s at line %u",
+                                  exp.acc->tok->lexeme,  t->lineno
+                                  );
+                        }
+                        else {
+                            scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
+                        }
                     }
-                    else {
-                        scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
-                    }
+                }
+                else {
+                    scope_add(obj->child, exp.obj, NULL);
                 }
             }
             else {
-                scope_add(obj->child, exp.obj, NULL);
+                *args = alloc(sizeof(**args));
+                (*args)->size = 1;
+                (*args)->head = alloc(sizeof(*(*args)->head));
+                (*args)->head->next = NULL;
+                (*args)->head->obj = exp.obj;
+                (*args)->tail = (*args)->head;
             }
-            if(exp.obj.type == TYPE_ERROR)
-                status = false;
-            return status && parse_aggregate_list_(obj);
+            return parse_aggregate_list_(obj, *args);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -782,44 +802,48 @@ bool parse_aggregate_list(object_s *obj)
                   or ) but got %s",
                   tok()->lineno, tok()->lexeme
                   );
-            return false;
+            break;
     }
-    return true;
 }
 
-bool parse_aggregate_list_(object_s *obj)
+void parse_aggregate_list_(object_s *obj, arglist_s *args)
 {
     exp_s exp;
     check_s check;
     token_s *t;
-    bool status = true;
     
     switch(tok()->type) {
         case TOK_TYPE_COMMA:
             t = next_tok();
             exp = parse_expression();
-            if(exp.acc) {
-                if(!exp.acc->next) {
-                    check = check_entry(obj->child, exp.acc);
-                    if(check.found) {
-                        error(
-                              "Error: Redeclaration of aggregate members within same initializer \
-                              not permitted: %s at line %u",
-                              exp.acc->tok->lexeme,  t->lineno
-                              );
-                        status = false;
+            if(obj) {
+                if(exp.acc) {
+                    if(!exp.acc->next) {
+                        check = check_entry(obj->child, exp.acc);
+                        if(check.found) {
+                            error(
+                                  "Error: Redeclaration of aggregate members within same initializer \
+                                  not permitted: %s at line %u",
+                                  exp.acc->tok->lexeme,  t->lineno
+                                  );
+                        }
+                        else {
+                            scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
+                        }
                     }
-                    else {
-                        scope_add(obj->child, exp.obj, exp.acc->tok->lexeme);
-                    }
+                }
+                else {
+                    scope_add(obj->child, exp.obj, NULL);
                 }
             }
             else {
-                scope_add(obj->child, exp.obj, NULL);
+                args->tail->next = alloc(sizeof(*args->tail));
+                args->tail = args->tail->next;
+                args->size++;
+                args->tail->next = NULL;
+                args->tail->obj = exp.obj;
             }
-            if(exp.obj.type == TYPE_ERROR)
-                status = false;
-            return status && parse_aggregate_list_(obj);
+            parse_aggregate_list_(obj, args);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
@@ -829,9 +853,8 @@ bool parse_aggregate_list_(object_s *obj)
                   "Syntax Error at line %d: Expected , } or ) but got %s",
                   tok()->lineno, tok()->lexeme
                   );
-            return false;
+            break;
     }
-    return true;
 }
 
 token_s *tok_clone(token_s *t)
@@ -981,6 +1004,8 @@ bool function_check(check_s check, object_s *args)
 
 void *net_send(void *arg)
 {
+    object_s *args = arg;
+    
     
 }
 
@@ -1061,7 +1086,6 @@ void *net_print(void *arg)
     printtabs = 0;
     return NULL;
 }
-
 
 void print_accesslist(access_list_s *list)
 {
