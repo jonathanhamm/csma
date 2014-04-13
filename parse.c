@@ -563,7 +563,8 @@ void parse_index(access_list_s **acc)
 optfollow_s parse_idfollow(access_list_s *acc)
 {
     optfollow_s opt;
-    arglist_s **args = NULL;
+    arglist_s *args = NULL;
+    arglist_s **arggs = &args;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
@@ -571,7 +572,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
             opt.exp.acc = NULL;
-            parse_aggregate_list(NULL, args);
+            parse_aggregate_list(NULL, arggs);
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -753,6 +754,7 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
     exp_s exp;
     check_s check;
     token_s *t;
+    arglist_s *arggs = NULL;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
@@ -784,13 +786,14 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
             }
             else {
                 *args = alloc(sizeof(**args));
-                (*args)->size = 1;
-                (*args)->head = alloc(sizeof(*(*args)->head));
-                (*args)->head->next = NULL;
-                (*args)->head->obj = exp.obj;
-                (*args)->tail = (*args)->head;
+                arggs = *args;
+                arggs->size = 1;
+                arggs->head = alloc(sizeof(*arggs->head));
+                arggs->head->next = NULL;
+                arggs->head->obj = exp.obj;
+                arggs->tail = arggs->head;
             }
-            return parse_aggregate_list_(obj, *args);
+            return parse_aggregate_list_(obj, arggs);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
