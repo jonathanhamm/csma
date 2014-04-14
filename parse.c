@@ -660,6 +660,9 @@ exp_s parse_expression(void)
     check_s check;
     optfollow_s opt;
     
+    exp.obj.arglist = NULL;
+    exp.obj.child = NULL;
+    exp.obj.tok = tok();
     exp.acc = NULL;
     switch(tok()->type) {
         case TOK_TYPE_NUM:
