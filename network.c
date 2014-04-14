@@ -3,6 +3,7 @@
 #include <time.h>
 #include <stdbool.h>
 #include <math.h>
+#include <assert.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -84,6 +85,7 @@ void create_node(char *id)
     char *argv[4];
     char fd_buf[2*sizeof(int)+2];
     
+    assert(id);
     if(!sym_lookup(&station_table, id)) {
         sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
         argv[0] = CLIENT_PATH;
@@ -94,6 +96,7 @@ void create_node(char *id)
         pid = fork();
     
         if(pid) {
+            assert(id);
             sym_insert(&station_table, id, (sym_data_u){.pid = pid});
         }
         else if(pid < 0) {

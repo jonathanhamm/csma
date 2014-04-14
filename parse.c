@@ -575,6 +575,7 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
             opt.exp.acc = NULL;
+            opt.exp.obj.child = NULL;
             opt.exp.obj.tok = t;
             parse_aggregate_list(NULL, arggs);
             opt.exp.obj.arglist = args;
@@ -945,7 +946,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.result = check.scope->object[acc->index];
         }
         else {
-            assert(acc->tok->lexeme);
             rec = sym_lookup(&check.scope->table, acc->tok->lexeme);
             if(rec)
                 check.result = rec->data.ptr;
