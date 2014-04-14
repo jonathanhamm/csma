@@ -53,6 +53,7 @@ struct object_s
         scope_s *child;
     };
     type_e type;
+    arglist_s *arglist;
     bool islazy;
 };
 
@@ -376,10 +377,11 @@ void parse_statement(void)
     optfollow_s opt;
     
     if(tok()->type == TOK_TYPE_ID) {
-        opt.exp.obj.tok = id = tok();
+        id = tok();
         id->marked = true;
         list = parse_id();
         opt = parse_idfollow(list);
+        opt.exp.obj.tok = id;
         
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
@@ -562,17 +564,20 @@ void parse_index(access_list_s **acc)
 
 optfollow_s parse_idfollow(access_list_s *acc)
 {
+    token_s *t;
     optfollow_s opt;
     arglist_s *args = NULL;
     arglist_s **arggs = &args;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
-            next_tok();
+            t = next_tok();
             opt.exp.obj.type = TYPE_ARGLIST;
             opt.isassign = false;
             opt.exp.acc = NULL;
+            opt.exp.obj.tok = t;
             parse_aggregate_list(NULL, arggs);
+            opt.exp.obj.arglist = args;
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
             }
@@ -905,9 +910,10 @@ void scope_add(scope_s *scope, object_s obj, char *id)
 
 check_s check_entry(scope_s *root, access_list_s *acc)
 {
-    sym_record_s *rec;
+    sym_record_s *rec = NULL;
     check_s check;
 
+    
     check.scope = root;
     while(true) {
         if(acc->isindex) {
@@ -939,6 +945,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.result = check.scope->object[acc->index];
         }
         else {
+            assert(acc->tok->lexeme);
             rec = sym_lookup(&check.scope->table, acc->tok->lexeme);
             if(rec)
                 check.result = rec->data.ptr;
@@ -969,6 +976,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.found = true;
             check.lastfailed = false;
             check.last = acc;
+            check.result = rec->data.ptr;
             return check;
         }
      }
@@ -1016,7 +1024,9 @@ void *net_node(void *arg)
     task_s *t;
     object_s *obj = arg;
     
-    if(obj->child->size > 1) {
+    
+    
+    if(obj->arglist->size > 1) {
         error(
               "Error: Invalid number of arguments passed to function node at line %u. \
               Expected node(string)",
@@ -1024,11 +1034,11 @@ void *net_node(void *arg)
              );
     }
     else {
-        if(obj->child->object[0]->type == TYPE_STRING) {
+        if(obj->arglist->head->obj.type == TYPE_STRING) {
             t = allocz(sizeof(*t) + sizeof(char *));
             t->func = FNET_NODE;
             t->next = NULL;
-            *(char **)(t + 1) = obj->child->object[0]->tok->lexeme;
+            *(char **)(t + 1) = obj->arglist->head->obj.tok->lexeme;
             task_enqueue(t);
         }
         else {
@@ -1069,10 +1079,18 @@ void *net_print(void *arg)
 {
     int i;
     object_s *obj = arg;
+    arg_s *a;
     
-    if(obj->child->size > 0) {
+    if(obj->arglist->size > 1) {
+        for(a = obj->arglist->head; a->next; a = a->next) {
+            print_object(&a->obj);
+            printf(", ");
+        }
+        print_object(&a->obj);
+    }
+    /*if(obj->arglist->size > 0) {
         for(i = 0; i < obj->child->size; i++) {
-            print_object(obj->child->object[i]);
+            print_object(obj->arglist->object[i]);
         }
     }
     else {
@@ -1083,7 +1101,7 @@ void *net_print(void *arg)
             }
             print_object(scope_root->object[i]);
         }
-    }
+    }*/
     putchar('\n');
     printtabs = 0;
     return NULL;
@@ -1191,6 +1209,7 @@ sym_record_s *sym_lookup(sym_table_s *table, char *key)
 {
     sym_record_s *rec = table->table[hash_pjw(key)];
     
+
     while(rec) {
         if(!strcmp(rec->key, key))
             return rec;
