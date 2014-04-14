@@ -1009,7 +1009,6 @@ void *net_send(void *arg)
 {
     object_s *args = arg;
     
-    
 }
 
 void *net_node(void *arg)
