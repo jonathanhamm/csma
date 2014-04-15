@@ -953,6 +953,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 }
                 return check;
             }
+            assert(check.scope != scope_root);
             check.result = check.scope->object[acc->index];
         }
         else {
