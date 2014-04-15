@@ -53,10 +53,8 @@ enum type_e
 
 struct object_s
 {
-    union {
-        token_s *tok;
-        scope_s *child;
-    };
+    token_s *tok;
+    scope_s *child;
     type_e type;
     arglist_s *arglist;
     bool islazy;
@@ -813,7 +811,12 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
-            obj->child = make_scope(NULL, "_anonymous");
+            if(obj)
+                obj->child = make_scope(NULL, "_anonymous");
+            else {
+                *args = alloc(sizeof(**args));
+                (*args)->size = 0;
+            }
             break;
         default:
             error(
@@ -926,6 +929,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
 
     
     check.scope = root;
+
     while(true) {
         if(acc->isindex) {
             assert(check.scope->size < 20);
