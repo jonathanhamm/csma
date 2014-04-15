@@ -928,6 +928,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
     check.scope = root;
     while(true) {
         if(acc->isindex) {
+            assert(check.scope->size < 20);
             if(acc->index > check.scope->size) {
                 check.found = false;
                 check.last = acc;
@@ -953,7 +954,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 }
                 return check;
             }
-            assert(check.scope != scope_root);
             check.result = check.scope->object[acc->index];
         }
         else {
