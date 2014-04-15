@@ -10,7 +10,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <malloc/malloc.h>
+
+#if ((defined(__APPLE__) && defined(__MACH__)) || defined(__FreeBSD__))
+    #include <malloc/malloc.h>
+#endif
 
 
 #include "parse.h"
