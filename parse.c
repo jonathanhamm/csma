@@ -1036,6 +1036,13 @@ bool function_check(check_s check, object_s *args)
     return false;
 }
 
+/*
+  -node src,
+  -node dst,
+  -int period,
+  -int repeat
+ */
+
 void *net_send(void *arg)
 {
     object_s *args = arg;

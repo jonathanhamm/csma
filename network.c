@@ -21,11 +21,14 @@ static void process_tasks(void);
 static void create_node(char *id);
 static uint32_t crc32(void *data, int size);
 
+static void sigUSR1(int sig);
+
 int main(int argc, char *argv[])
 {
     int c, status;
     char *src;
     buf_s *in;
+    struct sigaction sa;
     
     if(argc > 1) {
         src = readfile(argv[1]);
@@ -36,6 +39,15 @@ int main(int argc, char *argv[])
         src = readfile("test");
         parse(src);
         closefile();
+    }
+    
+    sa.sa_handler = sigUSR1;
+    sa.sa_flags = 1;
+    sigemptyset(&sa.sa_mask);
+    status = sigaction(SIGUSR1, &sa, NULL);
+    if(status < 0) {
+        perror("Error installing handler for SIGUSR1");
+        exit(EXIT_FAILURE);
     }
     
     status = pipe(pipe_fd);
@@ -93,11 +105,10 @@ void create_node(char *id)
         argv[1] = id;
         argv[2] = fd_buf;
         argv[3] = NULL;
-    
+        
         pid = fork();
-    
         if(pid) {
-            assert(id);
+            pause();
             sym_insert(&station_table, id, (sym_data_u){.pid = pid});
         }
         else if(pid < 0) {
@@ -116,3 +127,8 @@ void create_node(char *id)
 uint32_t crc32(void *data, int size)
 {
 }
+
+void sigUSR1(int sig)
+{
+}
+

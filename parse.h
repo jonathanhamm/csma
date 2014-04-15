@@ -32,6 +32,7 @@ enum tok_types_e {
     TOK_TYPE_EOF = 10,
     TOK_TYPE_OPENBRACKET = 11,
     TOK_TYPE_CLOSE_BRACKET = 12,
+    TOK_TYPE_BOOL
 };
 
 enum tok_att_s {
