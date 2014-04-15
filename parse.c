@@ -805,6 +805,10 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
                 arggs->head = alloc(sizeof(*arggs->head));
                 arggs->head->next = NULL;
                 arggs->head->obj = exp.obj;
+                if(exp.acc && !exp.acc->next && !exp.acc->isindex)
+                    arggs->head->name = exp.acc->tok->lexeme;
+                else
+                    arggs->head->name = NULL;
                 arggs->tail = arggs->head;
             }
             return parse_aggregate_list_(obj, arggs);
@@ -864,6 +868,10 @@ void parse_aggregate_list_(object_s *obj, arglist_s *args)
                 args->size++;
                 args->tail->next = NULL;
                 args->tail->obj = exp.obj;
+                if(exp.acc && !exp.acc->next && !exp.acc->isindex)
+                    args->head->name = exp.acc->tok->lexeme;
+                else
+                    args->head->name = NULL;
             }
             parse_aggregate_list_(obj, args);
             break;
