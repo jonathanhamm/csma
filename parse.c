@@ -10,6 +10,8 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <malloc/malloc.h>
+
 
 #include "parse.h"
 
@@ -178,6 +180,8 @@ static void free_accesslist(access_list_s *l);
 static void free_tokens(void);
 
 static char *strclone(char *str);
+
+bool is_allocated(const void *ptr);
 
 bool parse(char *src)
 {
@@ -1077,7 +1081,6 @@ void *net_clear(void *arg)
     //clear_scope(global);
 }
 
-
 void *net_print(void *arg)
 {
     int i;
@@ -1201,6 +1204,7 @@ void sym_insert(sym_table_s *table, char *key, sym_data_u data)
     uint16_t index = hash_pjw(key);
     sym_record_s *rec = alloc(sizeof(*rec));
     
+    assert(is_allocated(table->table[index]) || table->table[index] == NULL);
     rec->next = table->table[index];
     table->table[index] = rec;
     rec->key = key;
@@ -1411,3 +1415,15 @@ char *strclone(char *str)
     return clone;
 }
 
+bool is_allocated(const void *ptr)
+{
+    if (!ptr)
+        return false;
+#if ((defined(__APPLE__) && defined(__MACH__)) || defined(__FreeBSD__))
+    if (malloc_zone_from_ptr(ptr))
+        return true;
+    return false;
+#else
+    return false;
+#endif
+}

@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
+#include <stdint.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -18,6 +19,7 @@ static int pipe_fd[2];
 static sym_table_s station_table;
 static void process_tasks(void);
 static void create_node(char *id);
+static uint32_t crc32(void *data, int size);
 
 int main(int argc, char *argv[])
 {
@@ -85,7 +87,6 @@ void create_node(char *id)
     char *argv[4];
     char fd_buf[2*sizeof(int)+2];
     
-    assert(id);
     if(!sym_lookup(&station_table, id)) {
         sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
         argv[0] = CLIENT_PATH;
@@ -110,4 +111,8 @@ void create_node(char *id)
     else {
         error("Node %s already exists", id);
     }
+}
+
+uint32_t crc32(void *data, int size)
+{
 }
