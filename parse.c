@@ -384,8 +384,7 @@ void parse_statement(void)
         id = tok();
         id->marked = true;
         list = parse_id();
-        opt = parse_idfollow(list);
-        opt.exp.obj.tok = id;
+        opt = parse_idfollow(list);        
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
@@ -408,7 +407,9 @@ void parse_statement(void)
                 *check.result = opt.exp.obj;
             }
             else if(check.lastfailed) {
-                printf("adding: %s\n", check.last->tok->lexeme);
+                printf("adding: ");
+                print_object(&opt.exp.obj);
+                putchar('\n');
                 scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
