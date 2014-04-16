@@ -1049,7 +1049,11 @@ void *net_send(void *arg)
      used enum since it obeys scope
      */
     enum {
-        FTBABLE_SIZE = 4
+        FTABLE_SRC,
+        FTABLE_DST,
+        FTABLE_PERIOD,
+        FTABLE_REPEAT,
+        FTBABLE_SIZE
     };
     
     static struct {
@@ -1074,8 +1078,8 @@ void *net_send(void *arg)
                         table[i].obj = a->obj;
                         if(!(table[i].type & a->obj.type)) {
                             error(
-                                  "Error at line %d: Incompatible type passed to parameter \"%s\"",
-                                  a->obj.tok->lineno, table[i].name
+                                  "Error at line %d: Incompatible type passed to parameter from object %s in \"%s\"",
+                                  a->obj.tok->lineno, a->obj.tok->lexeme, table[i].name
                                   );
                         }
                     }
@@ -1094,41 +1098,72 @@ void *net_send(void *arg)
                 case TYPE_NODE:
                 case TYPE_AGGREGATE:
                 case TYPE_STRING:
-                    if(table[0].filled) {
-                        if(table[1].filled) {
+                    if(table[FTABLE_SRC].filled) {
+                        if(table[FTABLE_DST].filled) {
                             error(
-                                  "Error at line %d: Reuse of parameter %s in same function call.",
-                                  a->obj.tok->lineno, table[1].name
+                                  "Error at line %d: Reuse of parameter %s with %s in same function call \"send\".",
+                                  a->obj.tok->lineno,  table[FTABLE_DST].name, a->obj.tok->lexeme
                                   );
                         }
                         else {
-                            table[1].filled = true;
-                            table[1].obj = a->obj;
+                            table[FTABLE_DST].filled = true;
+                            table[FTABLE_DST].obj = a->obj;
                         }
                     }
                     else {
-                        table[0].filled = true;
-                        table[1].obj = a->obj;
+                        table[FTABLE_SRC].filled = true;
+                        table[FTABLE_SRC].obj = a->obj;
                     }
                     break;
                 case TYPE_INT:
                 case TYPE_REAL:
                 case TYPE_INF:
-                    
+                    if(table[FTABLE_PERIOD].filled) {
+                        if(a->obj.type == TYPE_INT) {
+                            if(table[FTABLE_REPEAT].filled) {
+                                error(
+                                      "Error at line %d: Reuse of parameter %s with %s in same function call \"send\".",
+                                      a->obj.tok->lineno, a->obj.tok->lexeme, table[FTABLE_REPEAT].name
+                                      );
+                            }
+                            else {
+                                table[FTABLE_REPEAT].filled = true;
+                                table[FTABLE_REPEAT].obj = a->obj;
+                            }
+                        }
+                        else {
+                            error(
+                                  "Error at line %d: Invalid type used from passed object %s in function call \"send\".",
+                                  a->obj.tok->lineno, a->obj.tok->lexeme
+                                  );
+                        }
+                    }
+                    else {
+                        table[FTABLE_PERIOD].filled = true;
+                        table[FTABLE_PERIOD].obj = a->obj;
+                    }
                     break;
                 default:
                     error(
-                          "Error at line %d: Incompatible type passed to function \"send\"",
-                          a->obj.tok->lineno
+                          "Error at line %d: Incompatible type passed from object %s to function \"send\"",
+                          a->obj.tok->lineno, a->obj.tok->lexeme
                           );
                     break;
                     
             }
         }
     }
-    
-    for(i = 0; i < FTBABLE_SIZE; i++)
-        table[i].filled = false;
+
+    for(i = 0; i < FTBABLE_SIZE; i++) {
+        if(!table[i].filled) {
+            error(
+                  "Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
+                  a->obj.tok->lineno
+                  );
+        }
+        else
+            table[i].filled = false;
+    }
     
     return NULL;
 }
