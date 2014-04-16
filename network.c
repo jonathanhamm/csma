@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     }
     
     sa.sa_handler = sigUSR1;
-    sa.sa_flags = 1;
+    sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
     status = sigaction(SIGUSR1, &sa, NULL);
     if(status < 0) {
@@ -120,12 +120,18 @@ void create_node(char *id)
         }
     }
     else {
-        error("Node %s already exists", id);
+        //error("Node %s already exists", id);
     }
 }
 
 uint32_t crc32(void *data, int size)
 {
+    uint8_t *d = data;
+    uint32_t sum = 1;
+    
+    
+    
+    return sum;
 }
 
 void sigUSR1(int sig)

@@ -163,7 +163,7 @@ static optfollow_s parse_optfollow(access_list_s *acc);
 static exp_s parse_assignment(void);
 static exp_s parse_expression(void);
 static void parse_aggregate(object_s *obj);
-static void parse_aggregate_list(object_s *obj, arglist_s **args);
+static void parse_aggregate_list(object_s *obj, arglist_s *args);
 static void parse_aggregate_list_(object_s *obj, arglist_s *args);
 
 static scope_s *make_scope(scope_s *parent, char *id);
@@ -387,7 +387,6 @@ void parse_statement(void)
         list = parse_id();
         opt = parse_idfollow(list);
         opt.exp.obj.tok = id;
-        
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
@@ -571,8 +570,9 @@ optfollow_s parse_idfollow(access_list_s *acc)
 {
     token_s *t;
     optfollow_s opt;
-    arglist_s *args = NULL;
-    arglist_s **arggs = &args;
+    arglist_s *args;
+    arg_s *ob;
+    check_s check;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENPAREN:
@@ -582,7 +582,8 @@ optfollow_s parse_idfollow(access_list_s *acc)
             opt.exp.acc = NULL;
             opt.exp.obj.child = NULL;
             opt.exp.obj.tok = t;
-            parse_aggregate_list(NULL, arggs);
+            args = allocz(sizeof(*args));
+            parse_aggregate_list(NULL, args);
             opt.exp.obj.arglist = args;
             if(tok()->type == TOK_TYPE_CLOSEPAREN) {
                 next_tok();
@@ -592,6 +593,20 @@ optfollow_s parse_idfollow(access_list_s *acc)
                       "Syntax Error at line %d: Exprected ) but got %s",
                       tok()->lineno,  tok()->lexeme
                       );
+            }
+            if(acc) {
+                check = check_entry(scope_root, acc);
+                if(check.found) {
+                    ob = alloc(sizeof(*ob));
+                    ob->name = check.last->tok->lexeme;
+                    ob->obj = *check.result;
+                    args->size++;
+                    ob->next = args->head;
+                    if(!args->head) {
+                        args->head = ob;
+                        args->tail = ob;
+                    }
+                }
             }
             break;
         case TOK_TYPE_ASSIGNOP:
@@ -763,12 +778,11 @@ void parse_aggregate(object_s *obj)
     }
 }
 
-void parse_aggregate_list(object_s *obj, arglist_s **args)
+void parse_aggregate_list(object_s *obj, arglist_s *args)
 {
     exp_s exp;
     check_s check;
     token_s *t;
-    arglist_s *arggs = NULL;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACE:
@@ -777,6 +791,7 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
         case TOK_TYPE_ID:
             t = tok();
             exp = parse_expression();
+            
             if(obj) {
                 obj->child = make_scope(NULL, "_anonymous");
                 if(exp.acc) {
@@ -799,28 +814,23 @@ void parse_aggregate_list(object_s *obj, arglist_s **args)
                 }
             }
             else {
-                *args = alloc(sizeof(**args));
-                arggs = *args;
-                arggs->size = 1;
-                arggs->head = alloc(sizeof(*arggs->head));
-                arggs->head->next = NULL;
-                arggs->head->obj = exp.obj;
+                args->size = 1;
+                args->head = alloc(sizeof(*args->head));
+                args->head->next = NULL;
+                args->head->obj = exp.obj;
+                assert(exp.obj.tok);
                 if(exp.acc && !exp.acc->next && !exp.acc->isindex)
-                    arggs->head->name = exp.acc->tok->lexeme;
+                    args->head->name = exp.acc->tok->lexeme;
                 else
-                    arggs->head->name = NULL;
-                arggs->tail = arggs->head;
+                    args->head->name = NULL;
+                args->tail = args->head;
             }
-            return parse_aggregate_list_(obj, arggs);
+            return parse_aggregate_list_(obj, args);
             break;
         case TOK_TYPE_CLOSEBRACE:
         case TOK_TYPE_CLOSEPAREN:
             if(obj)
                 obj->child = make_scope(NULL, "_anonymous");
-            else {
-                *args = alloc(sizeof(**args));
-                (*args)->size = 0;
-            }
             break;
         default:
             error(
@@ -1014,21 +1024,7 @@ bool function_check(check_s check, object_s *args)
     if(args->type != TYPE_ERROR) {
         for(i = 0; i < N_FUNCS; i++) {
             if(!strcmp(funcs[i].name, str)) {
-                switch(funcs[i].type) {
-                    case TYPE_NULL:
-                       // if(check. != global) {
-                          //  fprintf(stderr, "Cannot call function %s on object types.\n", str);
-                        //}
-                        funcs[i].func(args);
-                        break;
-                    case TYPE_ANY:
-                        funcs[i].func(args);
-                        break;
-                    default:
-                        //if(funcs[i].type == check.last)
-
-                        break;
-                }
+                funcs[i].func(args);
                 return true;
             }
         }
@@ -1045,8 +1041,13 @@ bool function_check(check_s check, object_s *args)
 
 void *net_send(void *arg)
 {
+    int i;
     object_s *args = arg;
     
+    assert(args->type == TYPE_ARGLIST);
+    for(i = 0; i < args->arglist->size; i++) {
+        
+    }
 }
 
 void *net_node(void *arg)
@@ -1106,33 +1107,21 @@ void *net_clear(void *arg)
 
 void *net_print(void *arg)
 {
-    int i;
     object_s *obj = arg;
     arg_s *a;
     
-    if(obj->arglist->size > 1) {
-        for(a = obj->arglist->head; a->next; a = a->next) {
+    a = obj->arglist->head;
+    if(a) {
+        while(a->next) {
             print_object(&a->obj);
             printf(", ");
+            a = a->next;
         }
         print_object(&a->obj);
+        putchar('\n');
+        printtabs = 0;
     }
-    /*if(obj->arglist->size > 0) {
-        for(i = 0; i < obj->child->size; i++) {
-            print_object(obj->arglist->object[i]);
-        }
-    }
-    else {
-        if(scope_root->size > 0) {
-            for(i = 0; i < scope_root->size-1; i++) {
-                print_object(scope_root->object[i]);
-                printf(", ");
-            }
-            print_object(scope_root->object[i]);
-        }
-    }*/
-    putchar('\n');
-    printtabs = 0;
+    
     return NULL;
 }
 
@@ -1166,7 +1155,7 @@ void print_object(void *object)
         case TYPE_STRING:
         case TYPE_NODE:
         case TYPE_ANY:
-            printf("%s", obj->tok->lexeme);
+             printf("%s", obj->tok->lexeme);
             break;
         case TYPE_AGGREGATE:
             printf("{ ");
@@ -1177,6 +1166,7 @@ void print_object(void *object)
                 }
                 print_object(obj->child->object[i]);
             }
+            
             printf(" }");
             break;
         case TYPE_NULL:
@@ -1288,6 +1278,9 @@ void sym_delete(sym_table_s *table, char *key)
     }
 }
 
+/*
+ pjw hash function
+ */
 uint16_t hash_pjw(char *key)
 {
     uint32_t h = 0, g;
