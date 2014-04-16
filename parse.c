@@ -172,7 +172,6 @@ static check_s check_entry(scope_s *root, access_list_s *acc);
 
 static bool function_check(check_s check, object_s *args);
 
-
 static void print_accesslist(access_list_s *list);
 static void print_object(void *obj);
 
@@ -818,7 +817,6 @@ void parse_aggregate_list(object_s *obj, arglist_s *args)
                 args->head = alloc(sizeof(*args->head));
                 args->head->next = NULL;
                 args->head->obj = exp.obj;
-                assert(exp.obj.tok);
                 if(exp.acc && !exp.acc->next && !exp.acc->isindex)
                     args->head->name = exp.acc->tok->lexeme;
                 else
@@ -879,9 +877,9 @@ void parse_aggregate_list_(object_s *obj, arglist_s *args)
                 args->tail->next = NULL;
                 args->tail->obj = exp.obj;
                 if(exp.acc && !exp.acc->next && !exp.acc->isindex)
-                    args->head->name = exp.acc->tok->lexeme;
+                    args->tail->name = exp.acc->tok->lexeme;
                 else
-                    args->head->name = NULL;
+                    args->tail->name = NULL;
             }
             parse_aggregate_list_(obj, args);
             break;
@@ -945,9 +943,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
     sym_record_s *rec = NULL;
     check_s check;
 
-    
     check.scope = root;
-
     while(true) {
         if(acc->isindex) {
             assert(check.scope->size < 20);
@@ -1042,19 +1038,60 @@ bool function_check(check_s check, object_s *args)
 void *net_send(void *arg)
 {
     int i;
+    arg_s *a;
     object_s *args = arg;
     
-    assert(args->type == TYPE_ARGLIST);
-    for(i = 0; i < args->arglist->size; i++) {
-        
+    /*
+     used enum since it obeys scope
+     */
+    enum {
+        FTBABLE_SIZE = 4
+    };
+    
+    static struct {
+        bool filled;
+        char *name;
+        object_s obj;
     }
+    table[] = {
+        {false, "src", {0}},
+        {false, "dst", {0}},
+        {false, "period", {0}},
+        {false, "repeat", {0}}
+    };
+
+    assert(args->type == TYPE_ARGLIST);
+    for(a = args->arglist->head; a; a = a->next) {
+        if(a->name) {
+            for(i = 0; i < FTBABLE_SIZE; i++) {
+                if(!strcmp(table[i].name, a->name)) {
+                    if(!table[i].filled) {
+                        table[i].filled = true;
+                        table[i].obj = a->obj;
+                    }
+                    else {
+                        error(
+                              "Error at line %d: Named parameter \"%s\" reused in same \
+                              function call",
+                              a->obj.tok->lineno, a->name
+                              );
+                    }
+                }
+            }
+        }
+        else {
+            
+        }
+    }
+    
+    for(i = 0; i < FTBABLE_SIZE; i++)
+        table[i].filled = false;
 }
 
 void *net_node(void *arg)
 {
     task_s *t;
     object_s *obj = arg;
-    
     
     
     if(obj->arglist->size > 1) {
@@ -1113,10 +1150,17 @@ void *net_print(void *arg)
     a = obj->arglist->head;
     if(a) {
         while(a->next) {
+            if(a->name) {
+                printf("%s= ", a->name);
+            }
             print_object(&a->obj);
             printf(", ");
             a = a->next;
         }
+        if(a->name) {
+            printf("%s= ", a->name);
+        }
+
         print_object(&a->obj);
         putchar('\n');
         printtabs = 0;
@@ -1166,7 +1210,6 @@ void print_object(void *object)
                 }
                 print_object(obj->child->object[i]);
             }
-            
             printf(" }");
             break;
         case TYPE_NULL:

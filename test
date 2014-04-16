@@ -66,6 +66,7 @@ a.x = 7
 
 rand()
 
+print(y=3)
 
 print(a.lol[3])
 print()
