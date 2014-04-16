@@ -39,16 +39,16 @@ typedef struct arglist_s arglist_s;
 
 enum type_e
 {
-    TYPE_INT,
-    TYPE_REAL,
-    TYPE_INF,
-    TYPE_STRING,
-    TYPE_NODE,
-    TYPE_ARGLIST,
-    TYPE_AGGREGATE,
-    TYPE_ERROR,
-    TYPE_NULL,
-    TYPE_ANY
+    TYPE_INT = 1,
+    TYPE_REAL = 2,
+    TYPE_INF = 4,
+    TYPE_STRING = 8,
+    TYPE_NODE = 16,
+    TYPE_ARGLIST = 32,
+    TYPE_AGGREGATE = 64,
+    TYPE_ERROR = 128,
+    TYPE_NULL = 256,
+    TYPE_ANY = 512
 };
 
 struct object_s
@@ -1052,12 +1052,12 @@ void *net_send(void *arg)
         bool filled;
         char *name;
         object_s obj;
-    }
-    table[] = {
-        {false, "src", {0}},
-        {false, "dst", {0}},
-        {false, "period", {0}},
-        {false, "repeat", {0}}
+        const type_e type;
+    } table[] = {
+        {false, "src", {0}, TYPE_NODE | TYPE_AGGREGATE | TYPE_STRING},
+        {false, "dst", {0}, TYPE_NODE | TYPE_AGGREGATE | TYPE_STRING},
+        {false, "period", {0}, TYPE_INT | TYPE_INF | TYPE_REAL},
+        {false, "repeat", {0}, TYPE_INT}
     };
 
     assert(args->type == TYPE_ARGLIST);
@@ -1068,6 +1068,12 @@ void *net_send(void *arg)
                     if(!table[i].filled) {
                         table[i].filled = true;
                         table[i].obj = a->obj;
+                        if(!(table[i].type & a->obj.type)) {
+                            error(
+                                  "Error at line %d: Incompatible type passed to parameter \"%s\"",
+                                  a->obj.tok->lineno, table[i].name
+                                  );
+                        }
                     }
                     else {
                         error(
@@ -1080,7 +1086,23 @@ void *net_send(void *arg)
             }
         }
         else {
-            
+            switch(a->obj.type) {
+                case TYPE_NODE:
+                case TYPE_AGGREGATE:
+                case TYPE_STRING:
+                    break;
+                case TYPE_INT:
+                case TYPE_REAL:
+                case TYPE_INF:
+                    break;
+                default:
+                    error(
+                          "Error at line %d: Incompatible type passed to function \"send\"",
+                          a->obj.tok->lineno
+                          );
+                    break;
+                    
+            }
         }
     }
     
