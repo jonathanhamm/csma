@@ -384,7 +384,7 @@ void parse_statement(void)
         id = tok();
         id->marked = true;
         list = parse_id();
-        opt = parse_idfollow(list);        
+        opt = parse_idfollow(list);
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
@@ -502,6 +502,7 @@ void parse_index(access_list_s **acc)
 {
     token_s *t;
     exp_s exp;
+    char *err;
     
     switch(tok()->type) {
         case TOK_TYPE_OPENBRACKET:
@@ -517,25 +518,26 @@ void parse_index(access_list_s **acc)
                     (*acc)->next = NULL;
                 }
                 else {
+                    switch(exp.obj.type) {
+                        case TYPE_REAL:
+                            err = "real type.";
+                            break;
+                        case TYPE_STRING:
+                            err = "string type.";
+                            break;
+                        case TYPE_INF:
+                            err = "infinite.";
+                            break;
+                        default:
+                            err = "unknown type.";
+                            break;
+                    }
+
                     error(
                           "Error: invalid Type Used to index aggregate object near line %d. \
                           Expected integer but got ",
-                          t->lineno
+                          t->lineno, err
                           );
-                    switch(exp.obj.type) {
-                        case TYPE_REAL:
-                            puts("real type.");
-                            break;
-                        case TYPE_STRING:
-                            puts("string type.");
-                            break;
-                        case TYPE_INF:
-                            puts("infinite");
-                            break;
-                        default:
-                            puts("unknown type.");
-                            break;
-                    }
                 }
                 next_tok();
                 parse_index(acc);
@@ -1092,10 +1094,27 @@ void *net_send(void *arg)
                 case TYPE_NODE:
                 case TYPE_AGGREGATE:
                 case TYPE_STRING:
+                    if(table[0].filled) {
+                        if(table[1].filled) {
+                            error(
+                                  "Error at line %d: Reuse of parameter %s in same function call.",
+                                  a->obj.tok->lineno, table[1].name
+                                  );
+                        }
+                        else {
+                            table[1].filled = true;
+                            table[1].obj = a->obj;
+                        }
+                    }
+                    else {
+                        table[0].filled = true;
+                        table[1].obj = a->obj;
+                    }
                     break;
                 case TYPE_INT:
                 case TYPE_REAL:
                 case TYPE_INF:
+                    
                     break;
                 default:
                     error(
@@ -1110,6 +1129,8 @@ void *net_send(void *arg)
     
     for(i = 0; i < FTBABLE_SIZE; i++)
         table[i].filled = false;
+    
+    return NULL;
 }
 
 void *net_node(void *arg)
