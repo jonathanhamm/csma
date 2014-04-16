@@ -408,6 +408,7 @@ void parse_statement(void)
                 *check.result = opt.exp.obj;
             }
             else if(check.lastfailed) {
+                printf("adding: %s\n", check.last->tok->lexeme);
                 scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
@@ -1166,6 +1167,7 @@ void *net_clear(void *arg)
 
 void *net_print(void *arg)
 {
+    int i;
     object_s *obj = arg;
     arg_s *a;
     
@@ -1179,15 +1181,19 @@ void *net_print(void *arg)
             printf(", ");
             a = a->next;
         }
-        if(a->name) {
-            printf("%s= ", a->name);
-        }
-
         print_object(&a->obj);
-        putchar('\n');
-        printtabs = 0;
     }
-    
+    else {
+        if(scope_root->size) {
+            for(i = 0; i < scope_root->size-1; i++) {
+                print_object(scope_root->object[i]);
+                printf(", ");
+            }
+            print_object(scope_root->object[i]);
+        }
+    }
+    putchar('\n');
+    printtabs = 0;
     return NULL;
 }
 
