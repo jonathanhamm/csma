@@ -1156,9 +1156,8 @@ void *net_send(void *arg)
 
     for(i = 0; i < FTBABLE_SIZE; i++) {
         if(!table[i].filled) {
-            error(
-                  "Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
-                  a->obj.tok->lineno
+            error("Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
+                  args->arglist->head->obj.tok->lineno
                   );
         }
         else

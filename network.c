@@ -14,9 +14,11 @@
 
 #define CLIENT_PATH "./client"
 
+
+sym_table_s station_table;
+
 //static volatile sig_atomic_t got_SIG
 static int pipe_fd[2];
-static sym_table_s station_table;
 static void process_tasks(void);
 static void create_node(char *id);
 static uint32_t crc32(void *data, int size);

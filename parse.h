@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include "network.h"
 
 #include "shared.h"
 
@@ -90,6 +91,8 @@ struct {
     task_s *tail;
 }
 tqueue;
+
+extern sym_table_s station_table;
 
 extern bool parse(char *src);
 
