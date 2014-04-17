@@ -62,7 +62,8 @@ enum type_e
     TYPE_AGGREGATE = 64,
     TYPE_ERROR = 128,
     TYPE_NULL = 256,
-    TYPE_ANY = 512
+    TYPE_ANY = 512,
+    TYPE_VOID = 1024
 };
 
 struct object_s

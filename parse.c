@@ -89,7 +89,7 @@ static bool parse_success;
 
 static func_s funcs[] = {
     {"send", TYPE_NODE},
-    {"node", TYPE_NULL},
+    {"node", TYPE_NODE},
     {"rand", TYPE_NULL},
     {"size", TYPE_ANY},
     {"kill", TYPE_NODE},
@@ -118,7 +118,7 @@ static scope_s *make_scope(scope_s *parent, char *id);
 static void scope_add(scope_s *scope, object_s obj, char *id);
 static check_s check_entry(scope_s *root, access_list_s *acc);
 
-static bool function_check(check_s check, object_s *args);
+static bool function_check(check_s check, object_s *args, object_s *res);
 
 static void print_accesslist(access_list_s *list);
 static void print_object(void *obj);
@@ -327,6 +327,7 @@ void parse_statement(void)
     token_s *id;
     check_s check;
     optfollow_s opt;
+    object_s res;
     
     if(tok()->type == TOK_TYPE_ID) {
         id = tok();
@@ -336,7 +337,7 @@ void parse_statement(void)
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.lastfailed) {
-                if(!function_check(check, &opt.exp.obj)) {
+                if(!function_check(check, &opt.exp.obj, &res)) {
                     error(
                           "Error: Call to unkown function %s at line %u",
                           check.last->tok->lexeme, check.last->tok->lineno
@@ -349,6 +350,7 @@ void parse_statement(void)
                       id->lineno, check.last->tok->lexeme
                       );
             }
+            res.tok = id;
         }
         else {
             if(check.found) {
@@ -630,6 +632,7 @@ exp_s parse_expression(void)
     access_list_s *acc;
     check_s check;
     optfollow_s opt;
+    object_s res;
     
     exp.obj.arglist = NULL;
     exp.obj.child = NULL;
@@ -668,8 +671,8 @@ exp_s parse_expression(void)
                 }
                 else {
                     if(opt.exp.obj.type == TYPE_ARGLIST) {
-                        if(function_check(check, &opt.exp.obj))
-                            exp.obj.type = TYPE_ANY;
+                        if(function_check(check, &opt.exp.obj, &res))
+                            exp.obj = res;
                         else
                             exp.obj.type = TYPE_ERROR;
                         exp.obj.tok = check.last->tok;
@@ -963,7 +966,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
      }
 }
 
-bool function_check(check_s check, object_s *args)
+bool function_check(check_s check, object_s *args, object_s *res)
 {
     int i;
     char *str = check.last->tok->lexeme;
@@ -971,11 +974,12 @@ bool function_check(check_s check, object_s *args)
     if(args->type != TYPE_ERROR) {
         for(i = 0; i < N_FUNCS; i++) {
             if(!strcmp(funcs[i].name, str)) {
-                funcs[i].func(args);
+                *res = funcs[i].func(args);
                 return true;
             }
         }
     }
+    *res = (object_s){.type = TYPE_ERROR};
     return false;
 }
 
@@ -1211,6 +1215,7 @@ object_s net_node(void *arg)
 {
     task_s *t;
     object_s *obj = arg;
+    object_s objr;
     
     
     if(obj->arglist->size > 1) {
@@ -1219,6 +1224,9 @@ object_s net_node(void *arg)
               Expected node(string)",
               obj->tok->lineno
              );
+        objr.type = TYPE_ERROR;
+        objr.tok = NULL;
+        return objr;
     }
     else {
         if(obj->arglist->head->obj.type == TYPE_STRING) {
@@ -1235,28 +1243,60 @@ object_s net_node(void *arg)
                   );
         }
     }
-    
-    //task_enqueue(
+    objr = obj->arglist->head->obj;
+    objr.type = TYPE_NODE;
+    return objr;
 }
 
 object_s net_rand(void *arg)
 {
+    object_s obj;
+    
+    obj.type = TYPE_INT;
     printf("Calling Rand\n");
+    
+    obj.islazy = true;
+    obj.child = NULL;
+    obj.arglist = NULL;
+    obj.tok = NULL;
+    return obj;
 }
 
 object_s net_size(void *arg)
 {
+    object_s obj;
     
+    obj.type = TYPE_INT;
+    obj.islazy = false;
+    obj.child = NULL;
+    obj.arglist = NULL;
+    obj.tok = NULL;
+    return obj;
 }
 
 object_s net_kill(void *arg)
 {
+    object_s obj;
     
+    obj.type = TYPE_VOID;
+    obj.islazy = false;
+    obj.child = NULL;
+    obj.arglist = NULL;
+    obj.tok = NULL;
+    return obj;
 }
 
 object_s net_clear(void *arg)
 {
     //clear_scope(global);
+    object_s obj;
+    
+    obj.type = TYPE_VOID;
+    obj.islazy = false;
+    obj.child = NULL;
+    obj.arglist = NULL;
+    obj.tok = NULL;
+    return obj;
 }
 
 object_s net_print(void *arg)
@@ -1264,6 +1304,8 @@ object_s net_print(void *arg)
     int i;
     object_s *obj = arg;
     arg_s *a;
+    object_s objr;
+
     
     a = obj->arglist->head;
     if(a) {
@@ -1288,6 +1330,13 @@ object_s net_print(void *arg)
     }
     putchar('\n');
     printtabs = 0;
+    
+    objr.type = TYPE_VOID;
+    objr.islazy = false;
+    objr.child = NULL;
+    objr.arglist = NULL;
+    objr.tok = NULL;
+    return objr;
 }
 
 void print_accesslist(access_list_s *list)
@@ -1336,12 +1385,16 @@ void print_object(void *object)
         case TYPE_NULL:
             printf("null");
             break;
+        case TYPE_VOID:
+            printf("void");
+            break;
         case TYPE_ERROR:
             break;
         case TYPE_ARGLIST:
         default:
             puts("illegal state");
-            assert(false);
+            //assert(false);
+            asm("hlt");
             break;
     }
 }
