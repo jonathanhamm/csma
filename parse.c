@@ -68,7 +68,8 @@ struct optfollow_s
 struct check_s
 {
     bool found;
-    bool lastfailed;
+    bool fread;
+    bool write;
     access_list_s *last;
     object_s *result;
     scope_s *scope;
@@ -336,7 +337,7 @@ void parse_statement(void)
         opt = parse_idfollow(list);
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
-            if(check.lastfailed) {
+            if(check.fread) {
                 if(!function_check(check, &opt.exp.obj, &res)) {
                     error(
                           "Error: Call to unkown function %s at line %u",
@@ -356,7 +357,7 @@ void parse_statement(void)
             if(check.found) {
                 *check.result = opt.exp.obj;
             }
-            else if(check.lastfailed) {
+            else if(check.write) {
                 printf("adding: ");
                 print_object(&opt.exp.obj);
                 putchar('\n');
@@ -898,6 +899,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
     sym_record_s *rec = NULL;
     check_s check;
 
+
     check.scope = root;
     while(true) {
         if(acc->isindex) {
@@ -906,14 +908,16 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 check.found = false;
                 check.last = acc;
                 check.result = NULL;
-                check.lastfailed = false;
+                check.write = false;
+                check.fread = false;
                 error("Error: Index Out of Bounds at line %u", acc->tok->lineno);
                 return check;
             }
             else if (acc->index == check.scope->size) {
                 if(!acc->next) {
                     check.found = false;
-                    check.lastfailed = true;
+                    check.write = true;
+                    check.fread = false;
                     check.last = acc;
                 }
                 else {
@@ -922,7 +926,8 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                           acc->tok->lineno
                           );
                     check.found = false;
-                    check.lastfailed = false;
+                    check.write = false;
+                    check.fread = false;
                     check.last = acc;
                 }
                 return check;
@@ -937,26 +942,41 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 check.found = false;
                 check.last = acc;
                 check.result = NULL;
-                if(!acc->next)
-                    check.lastfailed = true;
+                if(!acc->next) {
+                    check.fread = true;
+                    check.write = true;
+                }
+                else {
+                    check.fread = false;
+                    check.write = false;
+                }
                 return check;
             }
         }
         if(acc->next) {
             if(check.result->type == TYPE_AGGREGATE) {
-                acc = acc->next;
                 check.scope = check.result->child;
+                acc = acc->next;
             }
             else {
                 check.found = false;
                 check.last = acc;
+                if(acc->next) {
+                    check.fread = false;
+                    check.write = false;
+                }
+                else {
+                    check.fread = true;
+                    check.write = false;
+                }
                 check.result = NULL;
                 return check;
             }
         }
         else {
             check.found = true;
-            check.lastfailed = true;
+            check.write = true;
+            check.fread = false;
             check.last = acc;
             check.result = rec->data.ptr;
             return check;
@@ -1360,7 +1380,6 @@ object_s net_print(void *arg)
     object_s *obj = arg;
     arg_s *a;
     object_s objr;
-
     
     a = obj->arglist->head;
     if(a) {
