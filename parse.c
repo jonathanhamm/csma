@@ -1015,7 +1015,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
      }
 }
 
-
 bool function_check(check_s check, object_s *args)
 {
     int i;
@@ -1051,6 +1050,7 @@ void *net_send(void *arg)
     enum {
         FTABLE_SRC,
         FTABLE_DST,
+        FTABLE_MSG,
         FTABLE_PERIOD,
         FTABLE_REPEAT,
         FTBABLE_SIZE
@@ -1064,11 +1064,13 @@ void *net_send(void *arg)
     } table[] = {
         {false, "src", {0}, TYPE_NODE | TYPE_AGGREGATE | TYPE_STRING},
         {false, "dst", {0}, TYPE_NODE | TYPE_AGGREGATE | TYPE_STRING},
+        {false, "msg", {0}, TYPE_AGGREGATE | TYPE_STRING | TYPE_REAL | TYPE_INT},
         {false, "period", {0}, TYPE_INT | TYPE_INF | TYPE_REAL},
         {false, "repeat", {0}, TYPE_INT}
     };
 
     assert(args->type == TYPE_ARGLIST);
+    
     for(a = args->arglist->head; a; a = a->next) {
         if(a->name) {
             for(i = 0; i < FTBABLE_SIZE; i++) {
@@ -1100,10 +1102,17 @@ void *net_send(void *arg)
                 case TYPE_STRING:
                     if(table[FTABLE_SRC].filled) {
                         if(table[FTABLE_DST].filled) {
-                            error(
-                                  "Error at line %d: Reuse of parameter %s with %s in same function call \"send\".",
-                                  a->obj.tok->lineno,  table[FTABLE_DST].name, a->obj.tok->lexeme
-                                  );
+                            if(table[FTABLE_MSG].filled) {
+                                table[FTABLE_MSG].filled = true;
+                                table[FTABLE_MSG].obj = a->obj;
+                            }
+                            else{
+                                error(
+                                      "Error at line %d: Reuse of parameter %s with %s in \
+                                      same function call \"send\".",
+                                      a->obj.tok->lineno,  table[FTABLE_DST].name, a->obj.tok->lexeme
+                                      );
+                            }
                         }
                         else {
                             table[FTABLE_DST].filled = true;
@@ -1121,10 +1130,17 @@ void *net_send(void *arg)
                     if(table[FTABLE_PERIOD].filled) {
                         if(a->obj.type == TYPE_INT) {
                             if(table[FTABLE_REPEAT].filled) {
-                                error(
-                                      "Error at line %d: Reuse of parameter %s with %s in same function call \"send\".",
-                                      a->obj.tok->lineno, a->obj.tok->lexeme, table[FTABLE_REPEAT].name
-                                      );
+                                if(table[FTABLE_MSG].filled) {
+                                    error(
+                                          "Error at line %d: Reuse of parameter %s with %s in same \
+                                          function call \"send\".",
+                                          a->obj.tok->lineno, a->obj.tok->lexeme, table[FTABLE_REPEAT].name
+                                          );
+                                }
+                                else {
+                                    table[FTABLE_MSG].filled = true;
+                                    table[FTABLE_MSG].obj = a->obj;
+                                }
                             }
                             else {
                                 table[FTABLE_REPEAT].filled = true;
@@ -1133,7 +1149,8 @@ void *net_send(void *arg)
                         }
                         else {
                             error(
-                                  "Error at line %d: Invalid type used from passed object %s in function call \"send\".",
+                                  "Error at line %d: Invalid type used from passed object %s in \
+                                  function call \"send\".",
                                   a->obj.tok->lineno, a->obj.tok->lexeme
                                   );
                         }
@@ -1145,13 +1162,34 @@ void *net_send(void *arg)
                     break;
                 default:
                     error(
-                          "Error at line %d: Incompatible type passed from object %s to function \"send\"",
+                          "Error at line %d: Incompatible type passed from object %s to function \
+                          \"send\"",
                           a->obj.tok->lineno, a->obj.tok->lexeme
                           );
                     break;
                     
             }
         }
+    }
+    
+    /* No elegant way to do this */
+    if(!table[FTABLE_SRC].filled) {
+        table[FTABLE_SRC].obj.child = scope_root;
+        table[FTABLE_SRC].obj.islazy = false;
+        table[FTABLE_SRC].obj.type = TYPE_AGGREGATE;
+        table[FTABLE_SRC].obj.arglist = NULL;
+        table[FTABLE_SRC].obj.tok = NULL;
+        table[FTABLE_SRC].filled = true;
+        table[FTABLE_SRC].name = "_root";
+    }
+    if(!table[FTABLE_DST].filled) {
+        table[FTABLE_DST].obj.child = scope_root;
+        table[FTABLE_DST].obj.islazy = false;
+        table[FTABLE_DST].obj.type = TYPE_AGGREGATE;
+        table[FTABLE_DST].obj.arglist = NULL;
+        table[FTABLE_DST].obj.tok = NULL;
+        table[FTABLE_DST].filled = true;
+        table[FTABLE_DST].name = "_root";
     }
 
     for(i = 0; i < FTBABLE_SIZE; i++) {
@@ -1193,7 +1231,6 @@ void *net_node(void *arg)
                   "Error at line %u: Expected string type argument for node(string).",
                   obj->tok->lineno
                   );
-            
         }
     }
     
@@ -1355,7 +1392,6 @@ void sym_insert(sym_table_s *table, char *key, sym_data_u data)
 sym_record_s *sym_lookup(sym_table_s *table, char *key)
 {
     sym_record_s *rec = table->table[hash_pjw(key)];
-    
 
     while(rec) {
         if(!strcmp(rec->key, key))
