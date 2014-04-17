@@ -329,6 +329,7 @@ void parse_statement(void)
     check_s check;
     optfollow_s opt;
     object_s res;
+    arg_s *called;
     
     if(tok()->type == TOK_TYPE_ID) {
         id = tok();
@@ -338,6 +339,17 @@ void parse_statement(void)
         check = check_entry(scope_root, list);
         if(opt.exp.obj.type == TYPE_ARGLIST) {
             if(check.fread) {
+                if(list->next) {
+                    called = alloc(sizeof(*called));
+                    called->name = NULL;
+                    called->next = opt.exp.obj.arglist->head;
+                    called->obj = *check.result;
+                    opt.exp.obj.arglist->head = called;
+                    if(!opt.exp.obj.arglist->tail)
+                        opt.exp.obj.arglist->tail = called;
+                    opt.exp.obj.arglist->size++;
+                    puts("arg inserted");
+                }
                 if(!function_check(check, &opt.exp.obj, &res)) {
                     error(
                           "Error: Call to unkown function %s at line %u",
@@ -899,7 +911,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
     sym_record_s *rec = NULL;
     check_s check;
 
-
+    check.result = NULL;
     check.scope = root;
     while(true) {
         if(acc->isindex) {
@@ -907,7 +919,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             if(acc->index > check.scope->size) {
                 check.found = false;
                 check.last = acc;
-                check.result = NULL;
                 check.write = false;
                 check.fread = false;
                 error("Error: Index Out of Bounds at line %u", acc->tok->lineno);
@@ -936,12 +947,13 @@ check_s check_entry(scope_s *root, access_list_s *acc)
         }
         else {
             rec = sym_lookup(&check.scope->table, acc->tok->lexeme);
-            if(rec)
+            if(rec) {
                 check.result = rec->data.ptr;
+            }
             else {
                 check.found = false;
                 check.last = acc;
-                check.result = NULL;
+                
                 if(!acc->next) {
                     check.fread = true;
                     check.write = true;
@@ -971,7 +983,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.fread = true;
                     check.write = false;
                 }
-                check.result = NULL;
                 puts("exiting b");
                 return check;
             }
@@ -982,7 +993,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.fread = false;
             check.last = acc;
             check.result = rec->data.ptr;
-            puts("exiting d");
+            puts("exiting c");
             return check;
         }
      }
@@ -1089,37 +1100,52 @@ object_s net_send(void *arg)
             else {
                 switch(a->obj.type) {
                     case TYPE_AGGREGATE:
+                        if(table[FTABLE_SRC].filled) {
+                            if(table[FTABLE_DST].filled) {
+                                if(table[FTABLE_MSG].filled) {
+                                    error(
+                                          "Error at line %d: Incompatible aggregate type or too many "
+                                          "arguments supplied to function \"send\"",
+                                          a->obj.tok->lineno
+                                          );
+                                }
+                                else {
+                                    table[FTABLE_MSG].filled = true;
+                                    table[FTABLE_MSG].obj = a->obj;
+                                }
+                            }
+                            else {
+                                table[FTABLE_DST].filled = true;
+                                table[FTABLE_DST].obj = a->obj;
+                            }
+                        }
+                        else {
+                            table[FTABLE_SRC].filled = true;
+                            table[FTABLE_SRC].obj = a->obj;
+                        }
+                        break;
                     case TYPE_STRING:
                         if(table[FTABLE_MSG].filled) {
                             if(table[FTABLE_SRC].filled) {
                                 if(table[FTABLE_DST].filled) {
-                                    if(a->obj.type == TYPE_AGGREGATE) {
-                                        error(
-                                          "Error at line %d: Incompatible aggregate type or too many "
-                                          "arguments supplied to function \"send\"",
-                                          a->obj.tok->lineno
-                                        );
-                                    }
-                                    else {
-                                        error(
-                                          "Error at line %d: Incompatible string type or too many "
-                                          "arguments supplied to function \"send\"",
-                                          a->obj.tok->lineno
-                                        );
-                                    }
+                                    error(
+                                      "Error at line %d: Incompatible string type or too many "
+                                      "arguments supplied to function \"send\"",
+                                      a->obj.tok->lineno
+                                    );
                                 }
                                 else {
-                                    table[FTABLE_DST].filled = false;
+                                    table[FTABLE_DST].filled = true;
                                     table[FTABLE_DST].obj = a->obj;
                                 }
                             }
                             else {
-                                table[FTABLE_SRC].filled = false;
+                                table[FTABLE_SRC].filled = true;
                                 table[FTABLE_SRC].obj = a->obj;
                             }
                         }
                         else {
-                            table[FTABLE_MSG].filled = false;
+                            table[FTABLE_MSG].filled = true;
                             table[FTABLE_MSG].obj = a->obj;
                         }
                         break;

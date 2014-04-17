@@ -24,6 +24,7 @@ static void create_node(char *id);
 static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
+static void sigINT(int sig);
 
 int main(int argc, char *argv[])
 {
@@ -31,7 +32,7 @@ int main(int argc, char *argv[])
     char *src;
     buf_s *in;
     struct sigaction sa;
-    sym_record_s *rec;
+    sym_record_s *rec, *recb;
     
     if(argc > 1) {
         src = readfile(argv[1]);
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
     
     in = buf_init();
     
+    /* Get command line input */
     printf("> ");
     while((c = getchar()) != EOF) {
         buf_addc(&in, c);
@@ -78,11 +80,14 @@ int main(int argc, char *argv[])
     
     /* Slay all children */
     for(c = 0; c < SYM_TABLE_SIZE; c++) {
-        for(rec = station_table.table[c]; rec; rec = rec->next) {
-            kill(rec->data.pid, SIGKILL);
+        rec = station_table.table[c];
+        while(rec) {
+            kill(rec->data.pid, SIGTERM);
+            recb = rec->next;
+            free(rec);
+            rec = recb;
         }
     }
-    
     exit(EXIT_SUCCESS);
 }
 
@@ -129,9 +134,6 @@ void create_node(char *id)
             status = execv(CLIENT_PATH, argv);
         }
     }
-    else {
-        //error("Node %s already exists", id);
-    }
 }
 
 uint32_t crc32(void *data, int size)
@@ -139,12 +141,16 @@ uint32_t crc32(void *data, int size)
     uint8_t *d = data;
     uint32_t sum = 1;
     
-    
-    
     return sum;
 }
 
 void sigUSR1(int sig)
 {
 }
+
+void sigINT(int sig)
+{
+    
+}
+
 
