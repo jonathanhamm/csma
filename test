@@ -71,4 +71,8 @@ print(y=3)
 print(a.lol[3])
 print()
 
+a=node("herp")
+b=node("derp")
+send(a,b,"hello")
+
 #a.bob.send("hello world")

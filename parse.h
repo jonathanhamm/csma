@@ -9,6 +9,10 @@
 
 #define SYM_TABLE_SIZE 53
 
+typedef enum type_e type_e;
+
+typedef struct object_s object_s;
+typedef struct scope_s scope_s;
 typedef struct buf_s buf_s;
 typedef struct token_s token_s;
 typedef enum tok_types_e tok_types_e;
@@ -16,6 +20,8 @@ typedef enum tok_att_s tok_att_s;
 typedef union sym_data_u sym_data_u;
 typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
+typedef struct arg_s arg_s;
+typedef struct arglist_s arglist_s;
 
 typedef struct task_s task_s;
 
@@ -45,6 +51,29 @@ enum tok_att_s {
     TOK_ATT_INF
 };
 
+enum type_e
+{
+    TYPE_INT = 1,
+    TYPE_REAL = 2,
+    TYPE_INF = 4,
+    TYPE_STRING = 8,
+    TYPE_NODE = 16,
+    TYPE_ARGLIST = 32,
+    TYPE_AGGREGATE = 64,
+    TYPE_ERROR = 128,
+    TYPE_NULL = 256,
+    TYPE_ANY = 512
+};
+
+struct object_s
+{
+    token_s *tok;
+    scope_s *child;
+    type_e type;
+    arglist_s *arglist;
+    bool islazy;
+};
+
 struct buf_s
 {
     size_t bsize, size;
@@ -60,6 +89,20 @@ struct token_s
     bool marked;
     token_s *next;
     token_s *prev;
+};
+
+struct arg_s
+{
+    char *name;
+    object_s obj;
+    arg_s *next;
+};
+
+struct arglist_s
+{
+    int size;
+    arg_s *head;
+    arg_s *tail;
 };
 
 struct task_s
@@ -84,6 +127,15 @@ struct sym_record_s
 struct sym_table_s
 {
     sym_record_s *table[SYM_TABLE_SIZE];
+};
+
+struct scope_s
+{
+    char *id;
+    int size;
+    scope_s *parent;
+    sym_table_s table;
+    object_s **object;
 };
 
 struct {
@@ -119,13 +171,13 @@ extern void *alloc(size_t size);
 extern void *allocz(size_t size);
 extern void *ralloc(void *ptr, size_t size);
 
-extern void *net_send(void *);
-extern void *net_node(void *);
-extern void *net_rand(void *);
-extern void *net_size(void *);
-extern void *net_kill(void *);
-extern void *net_print(void *);
-extern void *net_clear(void *);
+extern object_s net_send(void *);
+extern object_s net_node(void *);
+extern object_s net_rand(void *);
+extern object_s net_size(void *);
+extern object_s net_kill(void *);
+extern object_s net_print(void *);
+extern object_s net_clear(void *);
 
 
 #endif

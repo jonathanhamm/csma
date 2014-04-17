@@ -24,55 +24,17 @@
 #define next_tok() (tokcurr = tokcurr->next)
 #define tok() (tokcurr)
 
-typedef enum type_e type_e;
-
-typedef struct object_s object_s;
 typedef struct exp_s exp_s;
-typedef struct scope_s scope_s;
 typedef struct access_list_s access_list_s;
 typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
 typedef struct check_s check_s;
-typedef struct arg_s arg_s;
-typedef struct arglist_s arglist_s;
-
-enum type_e
-{
-    TYPE_INT = 1,
-    TYPE_REAL = 2,
-    TYPE_INF = 4,
-    TYPE_STRING = 8,
-    TYPE_NODE = 16,
-    TYPE_ARGLIST = 32,
-    TYPE_AGGREGATE = 64,
-    TYPE_ERROR = 128,
-    TYPE_NULL = 256,
-    TYPE_ANY = 512
-};
-
-struct object_s
-{
-    token_s *tok;
-    scope_s *child;
-    type_e type;
-    arglist_s *arglist;
-    bool islazy;
-};
 
 struct exp_s
 {
     access_list_s *acc;
     object_s obj;
-};
-
-struct scope_s
-{
-    char *id;
-    int size;
-    scope_s *parent;
-    sym_table_s table;
-    object_s **object;
 };
 
 struct access_list_s
@@ -94,7 +56,7 @@ struct func_s
 {
     char *name;
     type_e type;
-    void *(*func)(void *);
+    object_s (*func)(void *);
 };
 
 struct optfollow_s
@@ -110,20 +72,6 @@ struct check_s
     access_list_s *last;
     object_s *result;
     scope_s *scope;
-};
-
-struct arg_s
-{
-    char *name;
-    object_s obj;
-    arg_s *next;
-};
-
-struct arglist_s
-{
-    int size;
-    arg_s *head;
-    arg_s *tail;
 };
 
 static token_s *head;
@@ -1039,7 +987,7 @@ bool function_check(check_s check, object_s *args)
  
  no pretty way to do this :(
  */
-void *net_send(void *arg)
+object_s net_send(void *arg)
 {
     int i;
     arg_s *a;
@@ -1215,6 +1163,7 @@ void *net_send(void *arg)
                         }
                         break;
                     default:
+                        asm("hlt");
                         error(
                               "Error at line %d: Incompatible type passed from object %s to function "
                               "\"send\"",
@@ -1256,10 +1205,9 @@ void *net_send(void *arg)
             table[i].filled = false;
     }*/
     
-    return NULL;
 }
 
-void *net_node(void *arg)
+object_s net_node(void *arg)
 {
     task_s *t;
     object_s *obj = arg;
@@ -1288,31 +1236,30 @@ void *net_node(void *arg)
         }
     }
     
-    return NULL;
     //task_enqueue(
 }
 
-void *net_rand(void *arg)
+object_s net_rand(void *arg)
 {
     printf("Calling Rand\n");
 }
 
-void *net_size(void *arg)
+object_s net_size(void *arg)
 {
     
 }
 
-void *net_kill(void *arg)
+object_s net_kill(void *arg)
 {
     
 }
 
-void *net_clear(void *arg)
+object_s net_clear(void *arg)
 {
     //clear_scope(global);
 }
 
-void *net_print(void *arg)
+object_s net_print(void *arg)
 {
     int i;
     object_s *obj = arg;
@@ -1341,7 +1288,6 @@ void *net_print(void *arg)
     }
     putchar('\n');
     printtabs = 0;
-    return NULL;
 }
 
 void print_accesslist(access_list_s *list)
