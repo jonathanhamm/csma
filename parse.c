@@ -996,6 +996,8 @@ object_s net_send(void *arg)
     int i;
     arg_s *a;
     object_s *args = arg;
+    object_s ret;
+    token_s *dummy;
     
     /*
      used enum since it obeys scope
@@ -1180,7 +1182,9 @@ object_s net_send(void *arg)
     }
     
     /* No elegant way to do this */
-    if(!table[FTABLE_SRC].filled) {
+    if(table[FTABLE_SRC].filled)
+        table[FTABLE_SRC].filled = false;
+    else {
         table[FTABLE_SRC].obj.child = scope_root;
         table[FTABLE_SRC].obj.islazy = false;
         table[FTABLE_SRC].obj.type = TYPE_AGGREGATE;
@@ -1189,7 +1193,10 @@ object_s net_send(void *arg)
         table[FTABLE_SRC].filled = true;
         table[FTABLE_SRC].name = "_root";
     }
-    if(!table[FTABLE_DST].filled) {
+
+    if(table[FTABLE_DST].filled)
+        table[FTABLE_DST].filled = false;
+    else {
         table[FTABLE_DST].obj.child = scope_root;
         table[FTABLE_DST].obj.islazy = false;
         table[FTABLE_DST].obj.type = TYPE_AGGREGATE;
@@ -1198,17 +1205,62 @@ object_s net_send(void *arg)
         table[FTABLE_DST].filled = true;
         table[FTABLE_DST].name = "_root";
     }
-/*
-    for(i = 0; i < FTBABLE_SIZE; i++) {
-        if(!table[i].filled) {
-            error("Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
-                  args->arglist->head->obj.tok->lineno
-                  );
-        }
-        else
-            table[i].filled = false;
-    }*/
     
+    if(table[FTABLE_MSG].filled)
+        table[FTABLE_MSG].filled = false;
+    else {
+        error("Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
+              args->arglist->head->obj.tok->lineno
+              );
+    }
+    
+    if(table[FTABLE_PERIOD].filled)
+        table[FTABLE_PERIOD].filled = false;
+    else  {
+        dummy = alloc(sizeof(*dummy));
+        dummy->lexeme = strclone("0");
+        dummy->type = TOK_TYPE_NUM;
+        dummy->att = TOK_ATT_INT;
+        dummy->next = NULL;
+        dummy->prev = NULL;
+        dummy->lineno = 0;
+        dummy->marked = true;
+        table[FTABLE_DST].obj.child = NULL;
+        table[FTABLE_DST].obj.islazy = false;
+        table[FTABLE_DST].obj.type = TYPE_INT;
+        table[FTABLE_DST].obj.arglist = NULL;
+        table[FTABLE_DST].obj.tok = dummy;
+        table[FTABLE_DST].filled = true;
+        table[FTABLE_DST].name = "_auto";
+    }
+    
+    if(table[FTABLE_REPEAT].filled)
+        table[FTABLE_REPEAT].filled = false;
+    else {
+        dummy = alloc(sizeof(*dummy));
+        dummy->lexeme = strclone("0");
+        dummy->type = TOK_TYPE_NUM;
+        dummy->att = TOK_ATT_INT;
+        dummy->next = NULL;
+        dummy->prev = NULL;
+        dummy->lineno = 0;
+        dummy->marked = true;
+        table[FTABLE_DST].obj.child = NULL;
+        table[FTABLE_DST].obj.islazy = false;
+        table[FTABLE_DST].obj.type = TYPE_INT;
+        table[FTABLE_DST].obj.arglist = NULL;
+        table[FTABLE_DST].obj.tok = dummy;
+        table[FTABLE_DST].filled = true;
+        table[FTABLE_DST].name = "_auto";
+    }
+    
+
+    ret.type = TYPE_VOID;
+    ret.islazy = false;
+    ret.child = NULL;
+    ret.arglist = NULL;
+    ret.tok = NULL;
+    return ret;
 }
 
 object_s net_node(void *arg)
