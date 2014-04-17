@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
     char *src;
     buf_s *in;
     struct sigaction sa;
+    sym_record_s *rec;
     
     if(argc > 1) {
         src = readfile(argv[1]);
@@ -74,6 +75,13 @@ int main(int argc, char *argv[])
         }
     }
     buf_free(in);
+    
+    /* Slay all children */
+    for(c = 0; c < SYM_TABLE_SIZE; c++) {
+        for(rec = station_table.table[c]; rec; rec = rec->next) {
+            kill(rec->data.pid, SIGKILL);
+        }
+    }
     
     exit(EXIT_SUCCESS);
 }

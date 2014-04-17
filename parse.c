@@ -950,19 +950,21 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.fread = false;
                     check.write = false;
                 }
+                puts("exiting a");
                 return check;
             }
         }
         if(acc->next) {
+            acc = acc->next;
             if(check.result->type == TYPE_AGGREGATE) {
                 check.scope = check.result->child;
-                acc = acc->next;
             }
             else {
                 check.found = false;
                 check.last = acc;
                 if(acc->next) {
-                    check.fread = false;
+                    if(acc->next)
+                        check.fread = false;
                     check.write = false;
                 }
                 else {
@@ -970,6 +972,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.write = false;
                 }
                 check.result = NULL;
+                puts("exiting b");
                 return check;
             }
         }
@@ -979,6 +982,7 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.fread = false;
             check.last = acc;
             check.result = rec->data.ptr;
+            puts("exiting d");
             return check;
         }
      }
@@ -1292,7 +1296,6 @@ object_s net_node(void *arg)
     object_s *obj = arg;
     object_s objr;
     
-    
     if(obj->arglist->size > 1) {
         error(
               "Error: Invalid number of arguments passed to function node at line %u. \
@@ -1508,12 +1511,10 @@ void sym_insert(sym_table_s *table, char *key, sym_data_u data)
     uint16_t index = hash_pjw(key);
     sym_record_s *rec = alloc(sizeof(*rec));
     
-    assert(is_allocated(table->table[index]) || table->table[index] == NULL);
     rec->next = table->table[index];
     table->table[index] = rec;
     rec->key = key;
     rec->data = data;
-    rec->next = NULL;
 }
 
 sym_record_s *sym_lookup(sym_table_s *table, char *key)
