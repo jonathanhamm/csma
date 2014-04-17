@@ -1071,103 +1071,98 @@ void *net_send(void *arg)
 
     assert(args->type == TYPE_ARGLIST);
     
-    for(a = args->arglist->head; a; a = a->next) {
-        if(a->name) {
-            for(i = 0; i < FTBABLE_SIZE; i++) {
-                if(!strcmp(table[i].name, a->name)) {
-                    if(!table[i].filled) {
-                        table[i].filled = true;
-                        table[i].obj = a->obj;
-                        if(!(table[i].type & a->obj.type)) {
-                            error(
-                                  "Error at line %d: Incompatible type passed to parameter from object %s in \"%s\"",
-                                  a->obj.tok->lineno, a->obj.tok->lexeme, table[i].name
-                                  );
-                        }
-                    }
-                    else {
-                        error(
-                              "Error at line %d: Named parameter \"%s\" reused in same \
-                              function call",
-                              a->obj.tok->lineno, a->name
-                              );
-                    }
-                }
-            }
+    if(args->arglist->size <= 1) {
+        if(!args->arglist->size) {
+            error(
+                  "Error at line %d: Not enough arguments supplied to function \"send\"",
+                  args->arglist->head->obj.tok->lineno
+                  );
         }
         else {
-            switch(a->obj.type) {
-                case TYPE_NODE:
-                case TYPE_AGGREGATE:
-                case TYPE_STRING:
-                    if(table[FTABLE_SRC].filled) {
-                        if(table[FTABLE_DST].filled) {
-                            if(table[FTABLE_MSG].filled) {
-                                table[FTABLE_MSG].filled = true;
-                                table[FTABLE_MSG].obj = a->obj;
-                            }
-                            else{
+            table[FTABLE_MSG].filled = true;
+            table[FTABLE_MSG].obj = args->arglist->head->obj;
+        }
+    }
+    else {
+        for(a = args->arglist->head; a; a = a->next) {
+            if(a->name) {
+                for(i = 0; i < FTBABLE_SIZE; i++) {
+                    if(!strcmp(table[i].name, a->name)) {
+                        if(!table[i].filled) {
+                            table[i].filled = true;
+                            table[i].obj = a->obj;
+                            if(!(table[i].type & a->obj.type)) {
                                 error(
-                                      "Error at line %d: Reuse of parameter %s with %s in \
-                                      same function call \"send\".",
-                                      a->obj.tok->lineno,  table[FTABLE_DST].name, a->obj.tok->lexeme
+                                      "Error at line %d: Incompatible type passed to parameter \
+                                      from object %s in \"%s\"",
+                                      a->obj.tok->lineno, a->obj.tok->lexeme, table[i].name
                                       );
                             }
                         }
                         else {
-                            table[FTABLE_DST].filled = true;
-                            table[FTABLE_DST].obj = a->obj;
-                        }
-                    }
-                    else {
-                        table[FTABLE_SRC].filled = true;
-                        table[FTABLE_SRC].obj = a->obj;
-                    }
-                    break;
-                case TYPE_INT:
-                case TYPE_REAL:
-                case TYPE_INF:
-                    if(table[FTABLE_PERIOD].filled) {
-                        if(a->obj.type == TYPE_INT) {
-                            if(table[FTABLE_REPEAT].filled) {
-                                if(table[FTABLE_MSG].filled) {
-                                    error(
-                                          "Error at line %d: Reuse of parameter %s with %s in same \
-                                          function call \"send\".",
-                                          a->obj.tok->lineno, a->obj.tok->lexeme, table[FTABLE_REPEAT].name
-                                          );
-                                }
-                                else {
-                                    table[FTABLE_MSG].filled = true;
-                                    table[FTABLE_MSG].obj = a->obj;
-                                }
-                            }
-                            else {
-                                table[FTABLE_REPEAT].filled = true;
-                                table[FTABLE_REPEAT].obj = a->obj;
-                            }
-                        }
-                        else {
                             error(
-                                  "Error at line %d: Invalid type used from passed object %s in \
-                                  function call \"send\".",
-                                  a->obj.tok->lineno, a->obj.tok->lexeme
+                                  "Error at line %d: Named parameter \"%s\" reused in same \
+                                  function call \"send\"",
+                                  a->obj.tok->lineno, a->name
                                   );
                         }
                     }
-                    else {
-                        table[FTABLE_PERIOD].filled = true;
-                        table[FTABLE_PERIOD].obj = a->obj;
-                    }
-                    break;
-                default:
-                    error(
-                          "Error at line %d: Incompatible type passed from object %s to function \
-                          \"send\"",
-                          a->obj.tok->lineno, a->obj.tok->lexeme
-                          );
-                    break;
+                }
+            }
+            else {
+                switch(a->obj.type) {
+                    case TYPE_AGGREGATE:
+                    case TYPE_STRING:
+                        if(table[FTABLE_MSG].filled) {
+                            if(table[FTABLE_SRC].filled) {
+                                if(table[FTABLE_DST].filled) {
+                                    if(a->obj.type == TYPE_AGGREGATE) {
+                                        error(
+                                          "Error at line %d: Incompatible aggregate type or too many \
+                                          arguments supplied to function \"send\"",
+                                          a->obj.tok->lineno
+                                        );
+                                    }
+                                    else {
+                                        error(
+                                          "Error at line %d: Incompatible string type or too many \
+                                          arguments supplied to function \"send\"",
+                                          a->obj.tok->lineno
+                                        );
+                                    }
+                                }
+                                else {
+                                    table[FTABLE_DST].filled = false;
+                                    table[FTABLE_DST].obj = a->obj;
+                                }
+                            }
+                            else {
+                                table[FTABLE_SRC].filled = false;
+                                table[FTABLE_SRC].obj = a->obj;
+                            }
+                        }
+                        else {
+                            table[FTABLE_MSG].filled = false;
+                            table[FTABLE_MSG].obj = a->obj;
+                        }
+                        break;
+                    case TYPE_REAL:
+                        break;
+                    case TYPE_INT:
+                        break;
+                    case TYPE_NODE:
+                        break;
+                    case TYPE_INF:
                     
+                        break;
+                    default:
+                        error(
+                              "Error at line %d: Incompatible type passed from object %s to function \
+                              \"send\"",
+                              a->obj.tok->lineno, a->obj.tok->lexeme
+                              );
+                        break;
+                }
             }
         }
     }
