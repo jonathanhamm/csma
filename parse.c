@@ -301,7 +301,7 @@ void lex(char *src)
                     fptr++;
                 }
                 else {
-                    error("Stray '+'");
+                    error("Error at line %d: Stray '+'", lineno);
                 }
                 break;
             default:
@@ -490,8 +490,8 @@ void parse_idsuffix(access_list_s **acc)
             break;
         default:
             error(
-                  "Syntax Error at line %d: Expected . { } string number = += ) ( \
-                  identifier , or EOF but got %s",
+                  "Syntax Error at line %d: Expected . { } string number = += ) ( "
+                  "identifier , or EOF but got %s",
                   tok()->lineno, tok()->lexeme
                   );
             break;
@@ -534,8 +534,8 @@ void parse_index(access_list_s **acc)
                     }
 
                     error(
-                          "Error: invalid Type Used to index aggregate object near line %d. \
-                          Expected integer but got ",
+                          "Error: invalid Type Used to index aggregate object near line %d. "
+                          "Expected integer but got ",
                           t->lineno, err
                           );
                 }
@@ -561,8 +561,8 @@ void parse_index(access_list_s **acc)
             break;
         default:
             error(
-                  "Syntax Error at line %d: Expected [ , } = += ) ( ] . \
-                  identifier or EOF but got %s",
+                  "Syntax Error at line %d: Expected [ , } = += ) ( ] . "
+                  "identifier or EOF but got %s",
                   tok()->lineno, tok()->lexeme
                   );
             break;
@@ -648,8 +648,8 @@ optfollow_s parse_optfollow(access_list_s *acc)
             break;
         default:
             error(
-                  "Syntax Error at line %d: Expected = += ( } { string number ) \
-                  id , or EOF but got %s",
+                  "Syntax Error at line %d: Expected = += ( } { string number ) "
+                  "id , or EOF but got %s",
                   tok()->lineno, tok()->lexeme
                   );
             break;
@@ -747,8 +747,8 @@ exp_s parse_expression(void)
             break;
         default:
             error(
-                  "Syntax Error at line %d: Expected number string \
-                  identifer or { but got %s",
+                  "Syntax Error at line %d: Expected number string"
+                  "identifer or { but got %s",
                   tok()->lineno, tok()->lexeme
                   );
             break;
@@ -802,8 +802,8 @@ void parse_aggregate_list(object_s *obj, arglist_s *args)
                         check = check_entry(obj->child, exp.acc);
                         if(check.found) {
                             error(
-                                  "Error: Redeclaration of aggregate members within same \
-                                  initializer not permitted: %s at line %u",
+                                  "Error: Redeclaration of aggregate members within same "
+                                  "initializer not permitted: %s at line %u",
                                   exp.acc->tok->lexeme,  t->lineno
                                   );
                         }
@@ -836,8 +836,8 @@ void parse_aggregate_list(object_s *obj, arglist_s *args)
             break;
         default:
             error(
-                  "Syntax Error at line %d: Expected { string number identifier } \
-                  or ) but got %s",
+                  "Syntax Error at line %d: Expected { string number identifier } "
+                  "or ) but got %s",
                   tok()->lineno, tok()->lexeme
                   );
             break;
@@ -860,8 +860,8 @@ void parse_aggregate_list_(object_s *obj, arglist_s *args)
                         check = check_entry(obj->child, exp.acc);
                         if(check.found) {
                             error(
-                                  "Error: Redeclaration of aggregate members within same initializer \
-                                  not permitted: %s at line %u",
+                                  "Error: Redeclaration of aggregate members within same initializer "
+                                  "not permitted: %s at line %u",
                                   exp.acc->tok->lexeme,  t->lineno
                                   );
                         }
@@ -1094,16 +1094,16 @@ void *net_send(void *arg)
                             table[i].obj = a->obj;
                             if(!(table[i].type & a->obj.type)) {
                                 error(
-                                      "Error at line %d: Incompatible type passed to parameter \
-                                      from object %s in \"%s\"",
+                                      "Error at line %d: Incompatible type passed to parameter "
+                                      "from object %s in \"%s\"",
                                       a->obj.tok->lineno, a->obj.tok->lexeme, table[i].name
                                       );
                             }
                         }
                         else {
                             error(
-                                  "Error at line %d: Named parameter \"%s\" reused in same \
-                                  function call \"send\"",
+                                  "Error at line %d: Named parameter \"%s\" reused in same "
+                                  "function call \"send\"",
                                   a->obj.tok->lineno, a->name
                                   );
                         }
@@ -1119,15 +1119,15 @@ void *net_send(void *arg)
                                 if(table[FTABLE_DST].filled) {
                                     if(a->obj.type == TYPE_AGGREGATE) {
                                         error(
-                                          "Error at line %d: Incompatible aggregate type or too many \
-                                          arguments supplied to function \"send\"",
+                                          "Error at line %d: Incompatible aggregate type or too many "
+                                          "arguments supplied to function \"send\"",
                                           a->obj.tok->lineno
                                         );
                                     }
                                     else {
                                         error(
-                                          "Error at line %d: Incompatible string type or too many \
-                                          arguments supplied to function \"send\"",
+                                          "Error at line %d: Incompatible string type or too many "
+                                          "arguments supplied to function \"send\"",
                                           a->obj.tok->lineno
                                         );
                                     }
@@ -1154,8 +1154,8 @@ void *net_send(void *arg)
                                 if(a->obj.type == TYPE_INT) {
                                     if(table[FTABLE_REPEAT].filled) {
                                         error(
-                                              "Error at line %d: Incompatible integer type or too many \
-                                              arguments supplied to function \"send\"",
+                                              "Error at line %d: Incompatible integer type or too many "
+                                              "arguments supplied to function \"send\"",
                                               a->obj.tok->lineno
                                               );
                                     }
@@ -1166,8 +1166,8 @@ void *net_send(void *arg)
                                 }
                                 else {
                                     error(
-                                          "Error at line %d: Incompatible real type or too many \
-                                          arguments supplied to function \"send\"",
+                                          "Error at line %d: Incompatible real type or too many "
+                                          "arguments supplied to function \"send\"",
                                           a->obj.tok->lineno
                                     );
                                 }
@@ -1183,14 +1183,41 @@ void *net_send(void *arg)
                         }
                         break;
                     case TYPE_NODE:
+                        if(table[FTABLE_SRC].filled) {
+                            if(table[FTABLE_DST].filled) {
+                                error(
+                                      "Error at line %d: Incompatible node type or too many "
+                                      "arguments supplied to function \"send\"",
+                                      a->obj.tok->lineno
+                                );
+                            }
+                            else {
+                                table[FTABLE_DST].filled = true;
+                                table[FTABLE_DST].obj = a->obj;
+                            }
+                        }
+                        else {
+                            table[FTABLE_SRC].filled = true;
+                            table[FTABLE_SRC].obj = a->obj;
+                        }
                         break;
                     case TYPE_INF:
-                    
+                        if(table[FTABLE_PERIOD].filled) {
+                            error(
+                                  "Error at line %d: Incompatible infinite value or too many "
+                                  "arguments supplied to function \"send\"",
+                                  a->obj.tok->lineno
+                            );
+                        }
+                        else {
+                            table[FTABLE_PERIOD].filled = true;
+                            table[FTABLE_PERIOD].obj = a->obj;
+                        }
                         break;
                     default:
                         error(
-                              "Error at line %d: Incompatible type passed from object %s to function \
-                              \"send\"",
+                              "Error at line %d: Incompatible type passed from object %s to function "
+                              "\"send\"",
                               a->obj.tok->lineno, a->obj.tok->lexeme
                               );
                         break;
@@ -1218,7 +1245,7 @@ void *net_send(void *arg)
         table[FTABLE_DST].filled = true;
         table[FTABLE_DST].name = "_root";
     }
-
+/*
     for(i = 0; i < FTBABLE_SIZE; i++) {
         if(!table[i].filled) {
             error("Error at line %d: Either not enough, or incorrect arguments passed to function \"send\".",
@@ -1227,7 +1254,7 @@ void *net_send(void *arg)
         }
         else
             table[i].filled = false;
-    }
+    }*/
     
     return NULL;
 }
