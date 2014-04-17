@@ -951,14 +951,12 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                 check.found = false;
                 check.last = acc;
                 check.result = NULL;
-                if(!acc->next)
-                    check.lastfailed = true;
                 return check;
             }
         }
         else {
             check.found = true;
-            check.lastfailed = false;
+            check.lastfailed = true;
             check.last = acc;
             check.result = rec->data.ptr;
             return check;
@@ -1225,13 +1223,13 @@ object_s net_send(void *arg)
         dummy->prev = NULL;
         dummy->lineno = 0;
         dummy->marked = true;
-        table[FTABLE_DST].obj.child = NULL;
-        table[FTABLE_DST].obj.islazy = false;
-        table[FTABLE_DST].obj.type = TYPE_INT;
-        table[FTABLE_DST].obj.arglist = NULL;
-        table[FTABLE_DST].obj.tok = dummy;
-        table[FTABLE_DST].filled = true;
-        table[FTABLE_DST].name = "_auto";
+        table[FTABLE_PERIOD].obj.child = NULL;
+        table[FTABLE_PERIOD].obj.islazy = false;
+        table[FTABLE_PERIOD].obj.type = TYPE_INT;
+        table[FTABLE_PERIOD].obj.arglist = NULL;
+        table[FTABLE_PERIOD].obj.tok = dummy;
+        table[FTABLE_PERIOD].filled = true;
+        table[FTABLE_PERIOD].name = "_auto";
     }
     
     if(table[FTABLE_REPEAT].filled)
@@ -1245,16 +1243,21 @@ object_s net_send(void *arg)
         dummy->prev = NULL;
         dummy->lineno = 0;
         dummy->marked = true;
-        table[FTABLE_DST].obj.child = NULL;
-        table[FTABLE_DST].obj.islazy = false;
-        table[FTABLE_DST].obj.type = TYPE_INT;
-        table[FTABLE_DST].obj.arglist = NULL;
-        table[FTABLE_DST].obj.tok = dummy;
-        table[FTABLE_DST].filled = true;
-        table[FTABLE_DST].name = "_auto";
+        table[FTABLE_REPEAT].obj.child = NULL;
+        table[FTABLE_REPEAT].obj.islazy = false;
+        table[FTABLE_REPEAT].obj.type = TYPE_INT;
+        table[FTABLE_REPEAT].obj.arglist = NULL;
+        table[FTABLE_REPEAT].obj.tok = dummy;
+        table[FTABLE_REPEAT].filled = true;
+        table[FTABLE_REPEAT].name = "_auto";
     }
     
-
+    for(i = 0; i < FTBABLE_SIZE; i++) {
+        printf("%d: ", i);
+        print_object(&table[i].obj);
+        putchar('\n');
+        fflush(stdout);
+    }
     ret.type = TYPE_VOID;
     ret.islazy = false;
     ret.child = NULL;
