@@ -1036,8 +1036,9 @@ bool function_check(check_s check, object_s *args)
   -node dst,
   -int period,
   -int repeat
+ 
+ no pretty way to do this :(
  */
-
 void *net_send(void *arg)
 {
     int i;
@@ -1146,9 +1147,40 @@ void *net_send(void *arg)
                             table[FTABLE_MSG].obj = a->obj;
                         }
                         break;
-                    case TYPE_REAL:
-                        break;
                     case TYPE_INT:
+                    case TYPE_REAL:
+                        if(table[FTABLE_MSG].filled) {
+                            if(table[FTABLE_PERIOD].filled) {
+                                if(a->obj.type == TYPE_INT) {
+                                    if(table[FTABLE_REPEAT].filled) {
+                                        error(
+                                              "Error at line %d: Incompatible integer type or too many \
+                                              arguments supplied to function \"send\"",
+                                              a->obj.tok->lineno
+                                              );
+                                    }
+                                    else {
+                                        table[FTABLE_REPEAT].filled = true;
+                                        table[FTABLE_REPEAT].obj = a->obj;
+                                    }
+                                }
+                                else {
+                                    error(
+                                          "Error at line %d: Incompatible real type or too many \
+                                          arguments supplied to function \"send\"",
+                                          a->obj.tok->lineno
+                                    );
+                                }
+                            }
+                            else {
+                                table[FTABLE_PERIOD].filled = true;
+                                table[FTABLE_PERIOD].obj = a->obj;
+                            }
+                        }
+                        else {
+                            table[FTABLE_MSG].filled = true;
+                            table[FTABLE_MSG].obj = a->obj;
+                        }
                         break;
                     case TYPE_NODE:
                         break;
