@@ -31,6 +31,7 @@ sym_table_s station_table;
 static int pipe_fd[2];
 static void process_tasks(void);
 static void create_node(char *id);
+static void send_message(send_s *send);
 static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
@@ -104,9 +105,6 @@ int main(int argc, char *argv[])
 void process_tasks(void)
 {
     task_s *t;
-    sym_record_s *rec;
-    station_s *station;
-    char *str;
     
     while((t = task_dequeue())) {
         switch(t->func) {
@@ -114,14 +112,7 @@ void process_tasks(void)
                 create_node(*(char **)(t + 1));
                 break;
             case FNET_SEND:
-                rec = sym_lookup(&station_table, *(char **)(t + 1));
-                if(rec) {
-                    station = rec->data.ptr;
-                    str = *((char **)(t + 1) + 1);
-                    write(station->pipe[1], str, strlen(str));
-                    kill(station->pid, SIGUSR1);
-                }
-                
+                send_message((send_s *)t);
                 break;
             default:
                 break;
@@ -169,6 +160,24 @@ void create_node(char *id)
             status = execv(CLIENT_PATH, argv);
         }
     }
+}
+
+void send_message(send_s *send)
+{
+    sym_record_s *rec;
+    station_s *station;
+    
+    rec = sym_lookup(&station_table, send->src);
+    if(rec) {
+        station = rec->data.ptr;
+        write(station->pipe[1], send->dst, strlen(send->dst)+1);
+        write(station->pipe[1], &send->size, sizeof(send->size));
+        write(station->pipe[1], send->payload, send->size);
+        write(station->pipe[1], send->period, strlen(send->period)+1);
+        write(station->pipe[1], &send->repeat, sizeof(send->repeat));
+        kill(station->pid, SIGUSR1);
+    }
+
 }
 
 uint32_t crc32(void *data, int size)

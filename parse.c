@@ -1364,6 +1364,7 @@ object_s net_send(void *arg)
                     
                     send = alloc(sizeof(*send));
                     send->super.func = FNET_SEND;
+                    send->super.next = NULL;
                     send->src = src_->obj->tok->lexeme;
                     send->dst = dst_->obj->tok->lexeme;
                     send->size = payload->size;
