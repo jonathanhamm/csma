@@ -30,6 +30,7 @@ typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
 typedef struct check_s check_s;
+typedef struct objlist_s objlist_s;
 
 struct exp_s
 {
@@ -73,6 +74,12 @@ struct check_s
     access_list_s *last;
     object_s *result;
     scope_s *scope;
+};
+
+struct objlist_s
+{
+    object_s *obj;
+    objlist_s *next;
 };
 
 static token_s *head;
@@ -120,6 +127,7 @@ static void scope_add(scope_s *scope, object_s obj, char *id);
 static check_s check_entry(scope_s *root, access_list_s *acc);
 
 static bool function_check(check_s check, object_s *args, object_s *res);
+static void flatten(objlist_s **list, object_s *obj);
 
 static void print_accesslist(access_list_s *list);
 static void print_object(void *obj);
@@ -688,7 +696,6 @@ exp_s parse_expression(void)
                             exp.obj = res;
                         else
                             exp.obj.type = TYPE_ERROR;
-                        exp.obj.tok = check.last->tok;
                         exp.obj.tok->marked = true;
                         exp.obj.islazy = false;
                     }
@@ -1016,6 +1023,26 @@ bool function_check(check_s check, object_s *args, object_s *res)
     return false;
 }
 
+void flatten(objlist_s **list, object_s *obj)
+{
+    int i;
+    objlist_s *node;
+    
+    if(obj->type == TYPE_AGGREGATE) {
+        for(i = 0; i < obj->child->size; i++) {
+            flatten(list, obj->child->object[i]);
+        }
+    }
+    else {
+        node = alloc(sizeof(*node));
+        node->obj = obj;
+        node->next = NULL;
+        (*list)->next = node;
+        *list = node;
+    }
+}
+
+
 /*
   -node src,
   -node dst,
@@ -1031,6 +1058,10 @@ object_s net_send(void *arg)
     object_s *args = arg;
     object_s ret;
     token_s *dummy;
+    task_s *t;
+    objlist_s   src, *src_ = &src,
+                dst, *dst_ = &dst,
+                *bck;
     
     /*
      used enum since it obeys scope
@@ -1302,12 +1333,28 @@ object_s net_send(void *arg)
         table[FTABLE_REPEAT].name = "_auto";
     }
     
-    for(i = 0; i < FTBABLE_SIZE; i++) {
-        printf("%d: ", i);
-        print_object(&table[i].obj);
-        putchar('\n');
-        fflush(stdout);
+    flatten(&src_, &table[FTABLE_SRC].obj);
+    flatten(&dst_, &table[FTABLE_DST].obj);
+    
+    for(src_ = src.next; src_; src_ = src_->next) {
+        for(dst_ = dst.next; dst_; dst_ = dst_->next) {
+            t = alloc(sizeof(*t) + 2*sizeof(char *));
+            t->func = FNET_SEND;
+            *(char **)(t + 1) = src_->obj->tok->lexeme;
+            *((char **)(t + 1) + 1) = dst_->obj->tok->lexeme;
+            task_enqueue(t);
+        }
     }
+    
+    for(src_ = src.next; src_; src_ = bck) {
+        bck = src_->next;
+        free(src_);
+    }
+    for(dst_ = dst.next; dst_; dst_ = bck) {
+        bck = dst_->next;
+        free(dst_);
+    }
+    
     ret.type = TYPE_VOID;
     ret.islazy = false;
     ret.child = NULL;
@@ -1347,8 +1394,11 @@ object_s net_node(void *arg)
                   );
         }
     }
+    objr.tok = obj->arglist->head->obj.tok;
+    obj->arglist->head->obj.tok->marked = true;
     objr = obj->arglist->head->obj;
     objr.type = TYPE_NODE;
+    printf("node: %s\n", objr.tok->lexeme);
     return objr;
 }
 
