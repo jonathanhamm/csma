@@ -55,6 +55,9 @@ int main(int argc, char *argv[])
                     case FNET_SEND:
                         parse_send();
                         break;
+                    default:
+                        fprintf(stderr, "Unknown Data Type Send %d\n", f);
+                        break;
                 }
             }
         }
@@ -88,7 +91,7 @@ void parse_send(void)
     read(tasks[0], &repeat, sizeof(repeat));
     
     printf("Processed a send with paylod: %s\n", payload);
-    
+    pipe_full = 0;
 }
 
 void sigUSR1(int sig)
