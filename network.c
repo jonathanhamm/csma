@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <stdbool.h>
 #include <math.h>
@@ -101,6 +102,9 @@ int main(int argc, char *argv[])
 void process_tasks(void)
 {
     task_s *t;
+    sym_record_s *rec;
+    station_s *station;
+    char *str;
     
     while((t = task_dequeue())) {
         switch(t->func) {
@@ -108,6 +112,13 @@ void process_tasks(void)
                 create_node(*(char **)(t + 1));
                 break;
             case FNET_SEND:
+                rec = sym_lookup(&station_table, *(char **)(t + 1));
+                if(rec) {
+                    station = rec->data.ptr;
+                    str = *((char **)(t + 1) + 1);
+                    write(station->pipe[1], str, strlen(str));
+                    kill(station->pid, SIGUSR1);
+                }
                 
                 break;
             default:
@@ -137,7 +148,6 @@ void create_node(char *id)
         argv[1] = id;
         argv[2] = fd_buf;
         argv[3] = NULL;
-        
         
         pid = fork();
         if(pid) {

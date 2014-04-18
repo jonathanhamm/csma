@@ -1042,7 +1042,6 @@ void flatten(objlist_s **list, object_s *obj)
     }
 }
 
-
 /*
   -node src,
   -node dst,
@@ -1337,12 +1336,19 @@ object_s net_send(void *arg)
     flatten(&dst_, &table[FTABLE_DST].obj);
     
     for(src_ = src.next; src_; src_ = src_->next) {
-        for(dst_ = dst.next; dst_; dst_ = dst_->next) {
-            t = alloc(sizeof(*t) + 2*sizeof(char *));
-            t->func = FNET_SEND;
-            *(char **)(t + 1) = src_->obj->tok->lexeme;
-            *((char **)(t + 1) + 1) = dst_->obj->tok->lexeme;
-            task_enqueue(t);
+        if(src_->obj->type == TYPE_NODE) {
+            for(dst_ = dst.next; dst_; dst_ = dst_->next) {
+                if(dst_->obj->type == TYPE_NODE) {
+                    t = alloc(sizeof(*t) + 3*sizeof(char *));
+                    t->func = FNET_SEND;
+                    *(char **)(t + 1) = src_->obj->tok->lexeme;
+                    printf("queuing: %s\n", *(char **)(t+1));
+                    *((char **)(t + 1) + 1) = dst_->obj->tok->lexeme;
+                    *((char **)(t + 1) + 2) = "hello you dumb";
+
+                    task_enqueue(t);
+                }
+            }
         }
     }
     
