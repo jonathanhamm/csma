@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
 {
     int status;
     struct sigaction sa;
-    
+
     if(argc != 3) {
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
         exit(EXIT_FAILURE);

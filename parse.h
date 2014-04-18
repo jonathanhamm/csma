@@ -24,6 +24,7 @@ typedef struct arg_s arg_s;
 typedef struct arglist_s arglist_s;
 
 typedef struct task_s task_s;
+typedef struct send_s send_s;
 
 enum tok_types_e {
     TOK_TYPE_ID = 0,
@@ -110,6 +111,17 @@ struct task_s
 {
     funcs_e func;
     task_s *next;
+};
+
+struct send_s
+{
+    task_s super;
+    char *src;
+    char *dst;
+    size_t size;
+    char *payload;
+    char *period;
+    bool repeat;
 };
 
 union sym_data_u

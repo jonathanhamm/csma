@@ -7,8 +7,10 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include <termios.h>
 #include <signal.h>
 #include <unistd.h>
+#include <util.h>
 
 #include "parse.h"
 #include "network.h"

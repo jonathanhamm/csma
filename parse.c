@@ -128,6 +128,7 @@ static check_s check_entry(scope_s *root, access_list_s *acc);
 
 static bool function_check(check_s check, object_s *args, object_s *res);
 static void flatten(objlist_s **list, object_s *obj);
+static void tostring(buf_s **buf, object_s *obj);
 
 static void print_accesslist(access_list_s *list);
 static void print_object(void *obj);
@@ -1042,6 +1043,24 @@ void flatten(objlist_s **list, object_s *obj)
     }
 }
 
+void tostring(buf_s **buf, object_s *obj)
+{
+    int i;
+    
+    if(obj->type == TYPE_AGGREGATE) {
+        buf_addc(buf, '{');
+        for(i = 0; i < obj->child->size-1; i++) {
+            tostring(buf, obj->child->object[i]);
+            buf_addc(buf, ',');
+        }
+        tostring(buf, obj->child->object[i]);
+        buf_addc(buf, '}');
+    }
+    else {
+        buf_addstr(buf, obj->tok->lexeme, strlen(obj->tok->lexeme));
+    }
+}
+
 /*
   -node src,
   -node dst,
@@ -1057,7 +1076,8 @@ object_s net_send(void *arg)
     object_s *args = arg;
     object_s ret;
     token_s *dummy;
-    task_s *t;
+    send_s *send;
+    buf_s *payload;
     objlist_s   src, *src_ = &src,
                 dst, *dst_ = &dst,
                 *bck;
@@ -1339,14 +1359,22 @@ object_s net_send(void *arg)
         if(src_->obj->type == TYPE_NODE) {
             for(dst_ = dst.next; dst_; dst_ = dst_->next) {
                 if(dst_->obj->type == TYPE_NODE) {
-                    t = alloc(sizeof(*t) + 3*sizeof(char *));
-                    t->func = FNET_SEND;
-                    *(char **)(t + 1) = src_->obj->tok->lexeme;
-                    printf("queuing: %s\n", *(char **)(t+1));
-                    *((char **)(t + 1) + 1) = dst_->obj->tok->lexeme;
-                    *((char **)(t + 1) + 2) = "hello you dumb";
-
-                    task_enqueue(t);
+                    payload = buf_init();
+                    tostring(&payload, &table[FTABLE_MSG].obj);
+                    
+                    send = alloc(sizeof(*send));
+                    send->super.func = FNET_SEND;
+                    send->src = src_->obj->tok->lexeme;
+                    send->dst = dst_->obj->tok->lexeme;
+                    send->size = payload->size;
+                    send->payload = payload->buf;
+                    if(table[FTABLE_PERIOD].obj.islazy)
+                        send->period = "-1";
+                    else
+                        send->period = table[FTABLE_PERIOD].obj.tok->lexeme;
+                    send->repeat = !!atoi(table[FTABLE_REPEAT].obj.tok->lexeme);
+                    
+                    task_enqueue((task_s *)send);
                 }
             }
         }
@@ -1725,7 +1753,7 @@ void buf_addstr(buf_s **b, char *str, size_t size)
         do {
             bb->bsize *= 2;
         }
-        while(bb->size >= bb->size);
+        while(bb->size >= bb->bsize);
         bb = *b = ralloc(b, sizeof(*bb) + bb->bsize);
     }
     strcpy(&bb->buf[old], str);
