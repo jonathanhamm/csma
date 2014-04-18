@@ -171,6 +171,8 @@ void send_message(send_s *send)
     if(rec) {
         dlen = strlen(send->dst);
         plen = strlen(send->period);
+        printf("pay %s\n", send->payload);
+
         station = rec->data.ptr;
         write(station->pipe[1], &send->super.func, sizeof(send->super.func));
         write(station->pipe[1], &dlen, sizeof(dlen));

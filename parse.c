@@ -1355,12 +1355,13 @@ object_s net_send(void *arg)
     flatten(&src_, &table[FTABLE_SRC].obj);
     flatten(&dst_, &table[FTABLE_DST].obj);
     
+    payload = buf_init();
+    tostring(&payload, &table[FTABLE_MSG].obj);
+    
     for(src_ = src.next; src_; src_ = src_->next) {
         if(src_->obj->type == TYPE_NODE) {
             for(dst_ = dst.next; dst_; dst_ = dst_->next) {
                 if(dst_->obj->type == TYPE_NODE) {
-                    payload = buf_init();
-                    tostring(&payload, &table[FTABLE_MSG].obj);
                     
                     send = alloc(sizeof(*send));
                     send->super.func = FNET_SEND;

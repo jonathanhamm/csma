@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -21,7 +22,7 @@ int main(int argc, char *argv[])
 {
     int status;
     funcs_e f;
-    ssize_t size;
+    ssize_t rstatus;
     struct sigaction sa;
     
 
@@ -45,11 +46,13 @@ int main(int argc, char *argv[])
     kill(getppid(), SIGUSR1);
     
     while(1) {
-        pause();
         if(pipe_full) {
-            size = read(tasks[0], &f, sizeof(f));
-            if(size < sizeof(f))
-                perror("Read Error from pipe");
+            rstatus = read(tasks[0], &f, sizeof(f));
+            if(rstatus < sizeof(f)) {
+                if(rstatus == EAGAIN) {
+                    pipe_full = 0;
+                }
+            }
             else {
                 switch(f) {
                     case FNET_SEND:
@@ -61,8 +64,10 @@ int main(int argc, char *argv[])
                 }
             }
         }
+        else {
+            pause();
+        }
     }
-    
     return 0;
 }
 
@@ -91,7 +96,6 @@ void parse_send(void)
     read(tasks[0], &repeat, sizeof(repeat));
     
     printf("Processed a send with paylod: %s\n", payload);
-    pipe_full = 0;
 }
 
 void sigUSR1(int sig)
