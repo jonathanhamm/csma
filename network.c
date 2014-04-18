@@ -10,7 +10,7 @@
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
-#include <util.h>
+//#include <util.h>
 
 #include "parse.h"
 #include "network.h"
