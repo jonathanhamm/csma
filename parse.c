@@ -1754,7 +1754,7 @@ void buf_addstr(buf_s **b, char *str, size_t size)
             bb->bsize *= 2;
         }
         while(bb->size >= bb->bsize);
-        bb = *b = ralloc(b, sizeof(*bb) + bb->bsize);
+        bb = *b = ralloc(bb, sizeof(*bb) + bb->bsize);
     }
     strcpy(&bb->buf[old], str);
 }
