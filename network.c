@@ -14,6 +14,13 @@
 
 #define CLIENT_PATH "./client"
 
+typedef struct station_s station_s;
+
+struct station_s
+{
+    pid_t pid;
+    int pipe[2];
+};
 
 sym_table_s station_table;
 
@@ -100,6 +107,9 @@ void process_tasks(void)
             case FNET_NODE:
                 create_node(*(char **)(t + 1));
                 break;
+            case FNET_SEND:
+                
+                break;
             default:
                 break;
         }
@@ -112,19 +122,32 @@ void create_node(char *id)
     int status;
     pid_t pid;
     char *argv[4];
-    char fd_buf[2*sizeof(int)+2];
+    char fd_buf[4*sizeof(int)+4];
+    int fd[2];
+    station_s *station;
     
     if(!sym_lookup(&station_table, id)) {
-        sprintf(fd_buf, "%d.%d", pipe_fd[0], pipe_fd[1]);
+        status = pipe(fd);
+        if(status < 0) {
+            perror("Error Creating Pipe");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(fd_buf, "%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
         argv[2] = fd_buf;
         argv[3] = NULL;
         
+        
         pid = fork();
         if(pid) {
             pause();
-            sym_insert(&station_table, id, (sym_data_u){.pid = pid});
+            station = alloc(sizeof(*station));
+            station->pid = pid;
+            station->pipe[0] = fd[0];
+            station->pipe[1] = fd[1];
+            
+            sym_insert(&station_table, id, (sym_data_u){.ptr = station});
         }
         else if(pid < 0) {
             perror("Failed to create station process.");
