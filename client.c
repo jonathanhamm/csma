@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+
 #include <signal.h>
 #include <unistd.h>
 
@@ -9,12 +11,19 @@ static int medium[2];
 static int tasks[2];
 static char *name;
 
+static volatile sig_atomic_t pipe_full;
+
 static void sigUSR1(int sig);
+
+static void parse_send(void);
 
 int main(int argc, char *argv[])
 {
     int status;
+    funcs_e f;
+    ssize_t size;
     struct sigaction sa;
+    
 
     if(argc != 3) {
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
@@ -37,13 +46,52 @@ int main(int argc, char *argv[])
     
     while(1) {
         pause();
+        if(pipe_full) {
+            size = read(tasks[0], &f, sizeof(f));
+            if(size < sizeof(f))
+                perror("Read Error from pipe");
+            else {
+                switch(f) {
+                    case FNET_SEND:
+                        parse_send();
+                        break;
+                }
+            }
+        }
     }
     
     return 0;
 }
 
+void parse_send(void)
+{
+    bool repeat;
+    size_t dlen, plen, size;
+    char *dst, *payload, *period;
+    
+    read(tasks[0], &dlen, sizeof(dlen));
+    
+    dst = malloc(dlen+1);
+    dst[dlen] = '\0';
+    read(tasks[0], dst, dlen);
+    
+    read(tasks[0], &size, sizeof(size));
+    payload = malloc(size+1);
+    payload[size] = '\0';
+    read(tasks[0], payload, size);
+    
+    read(tasks[0], &plen, sizeof(plen));
+    period = malloc(plen+1);
+    period[plen] = '\0';
+    read(tasks[0], period, plen);
+    
+    read(tasks[0], &repeat, sizeof(repeat));
+    
+    printf("Processed a send with paylod: %s\n", payload);
+    
+}
+
 void sigUSR1(int sig)
 {
-    printf("SIGUSR1 called from %s\n", name);
-    fflush(stdout);
+    pipe_full = 1;
 }

@@ -27,7 +27,6 @@ struct station_s
 
 sym_table_s station_table;
 
-//static volatile sig_atomic_t got_SIG
 static int pipe_fd[2];
 static void process_tasks(void);
 static void create_node(char *id);
@@ -166,18 +165,23 @@ void send_message(send_s *send)
 {
     sym_record_s *rec;
     station_s *station;
+    size_t dlen, plen;
     
     rec = sym_lookup(&station_table, send->src);
     if(rec) {
+        dlen = strlen(send->dst);
+        plen = strlen(send->period);
         station = rec->data.ptr;
-        write(station->pipe[1], send->dst, strlen(send->dst)+1);
+        write(station->pipe[1], &send->super.func, sizeof(send->super.func));
+        write(station->pipe[1], &dlen, sizeof(dlen));
+        write(station->pipe[1], send->dst, strlen(send->dst));
         write(station->pipe[1], &send->size, sizeof(send->size));
         write(station->pipe[1], send->payload, send->size);
-        write(station->pipe[1], send->period, strlen(send->period)+1);
+        write(station->pipe[1], &plen, sizeof(plen));
+        write(station->pipe[1], send->period, plen);
         write(station->pipe[1], &send->repeat, sizeof(send->repeat));
         kill(station->pid, SIGUSR1);
     }
-
 }
 
 uint32_t crc32(void *data, int size)
