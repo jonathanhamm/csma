@@ -1514,6 +1514,10 @@ object_s net_kill(void *arg)
                 break;
         }
     }
+    for(curr = head; curr; curr = curr->next) {
+        print_object(curr->obj);
+        putchar('\n');
+    }
     
     obj.type = TYPE_VOID;
     return obj;
