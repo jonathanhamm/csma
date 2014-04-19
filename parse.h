@@ -22,6 +22,7 @@ typedef struct sym_record_s sym_record_s;
 typedef struct sym_table_s sym_table_s;
 typedef struct arg_s arg_s;
 typedef struct arglist_s arglist_s;
+typedef struct objlist_s objlist_s;
 
 typedef struct task_s task_s;
 typedef struct send_s send_s;
@@ -151,6 +152,12 @@ struct scope_s
     object_s **object;
 };
 
+struct objlist_s
+{
+    object_s *obj;
+    objlist_s *next;
+};
+
 struct {
     task_s *head;
     task_s *tail;
@@ -179,10 +186,6 @@ extern void sym_delete(sym_table_s *table, char *key);
 
 extern void task_enqueue(task_s *t);
 extern task_s *task_dequeue(void);
-
-extern void *alloc(size_t size);
-extern void *allocz(size_t size);
-extern void *ralloc(void *ptr, size_t size);
 
 extern object_s net_send(void *);
 extern object_s net_node(void *);

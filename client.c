@@ -15,6 +15,7 @@ static char *name;
 static volatile sig_atomic_t pipe_full;
 
 static void sigUSR1(int sig);
+static void sigTERM(int sig);
 
 static void parse_send(void);
 
@@ -40,6 +41,16 @@ int main(int argc, char *argv[])
         perror("Error installing handler for SIGUSR1");
         exit(EXIT_FAILURE);
     }
+    
+    sa.sa_handler = sigTERM;
+    sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+    status = sigaction(SIGTERM, &sa, NULL);
+    if(status < 0) {
+        perror("Error installing handler for SIGUSR1");
+        exit(EXIT_FAILURE);
+    }
+    
     name = argv[1];
     printf("Successfully Started Station: %s\n", name);
     
@@ -79,17 +90,17 @@ void parse_send(void)
     
     read(tasks[0], &dlen, sizeof(dlen));
     
-    dst = malloc(dlen+1);
+    dst = alloc(dlen+1);
     dst[dlen] = '\0';
     read(tasks[0], dst, dlen);
     
     read(tasks[0], &size, sizeof(size));
-    payload = malloc(size+1);
+    payload = alloc(size+1);
     payload[size] = '\0';
     read(tasks[0], payload, size);
     
     read(tasks[0], &plen, sizeof(plen));
-    period = malloc(plen+1);
+    period = alloc(plen+1);
     period[plen] = '\0';
     read(tasks[0], period, plen);
     
@@ -102,3 +113,9 @@ void sigUSR1(int sig)
 {
     pipe_full = 1;
 }
+
+void sigTERM(int sig)
+{
+    exit(EXIT_SUCCESS);
+}
+

@@ -14,6 +14,7 @@
 
 #include "parse.h"
 #include "network.h"
+#include "shared.h"
 
 #define CLIENT_PATH "./client"
 
@@ -31,6 +32,7 @@ static int pipe_fd[2];
 static void process_tasks(void);
 static void create_node(char *id);
 static void send_message(send_s *send);
+static void kill_child(station_s *s);
 static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
@@ -41,6 +43,7 @@ int main(int argc, char *argv[])
     int c, status;
     char *src;
     buf_s *in;
+    station_s *s;
     struct sigaction sa;
     sym_record_s *rec, *recb;
     
@@ -88,11 +91,11 @@ int main(int argc, char *argv[])
     }
     buf_free(in);
     
-    /* Slay all children */
+    /* kill all children */
     for(c = 0; c < SYM_TABLE_SIZE; c++) {
         rec = station_table.table[c];
         while(rec) {
-            kill(rec->data.pid, SIGTERM);
+            kill_child(rec->data.ptr);
             recb = rec->next;
             free(rec);
             rec = recb;
@@ -143,6 +146,7 @@ void create_node(char *id)
         
         pid = fork();
         if(pid) {
+            /* synchronize child and parent */
             pause();
             station = alloc(sizeof(*station));
             station->pid = pid;
@@ -171,7 +175,6 @@ void send_message(send_s *send)
     if(rec) {
         dlen = strlen(send->dst);
         plen = strlen(send->period);
-        printf("pay %s\n", send->payload);
 
         station = rec->data.ptr;
         write(station->pipe[1], &send->super.func, sizeof(send->super.func));
@@ -184,6 +187,13 @@ void send_message(send_s *send)
         write(station->pipe[1], &send->repeat, sizeof(send->repeat));
         kill(station->pid, SIGUSR1);
     }
+}
+
+void kill_child(station_s *s)
+{
+    close(s->pipe[0]);
+    close(s->pipe[1]);
+    kill(s->pid, SIGTERM);
 }
 
 uint32_t crc32(void *data, int size)

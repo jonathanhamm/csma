@@ -30,7 +30,6 @@ typedef struct func_s func_s;
 typedef struct optfollow_s optfollow_s;
 typedef struct params_s params_s;
 typedef struct check_s check_s;
-typedef struct objlist_s objlist_s;
 
 struct exp_s
 {
@@ -74,12 +73,6 @@ struct check_s
     access_list_s *last;
     object_s *result;
     scope_s *scope;
-};
-
-struct objlist_s
-{
-    object_s *obj;
-    objlist_s *next;
 };
 
 static token_s *head;
@@ -1362,7 +1355,6 @@ object_s net_send(void *arg)
         if(src_->obj->type == TYPE_NODE) {
             for(dst_ = dst.next; dst_; dst_ = dst_->next) {
                 if(dst_->obj->type == TYPE_NODE) {
-                    
                     send = alloc(sizeof(*send));
                     send->super.func = FNET_SEND;
                     send->super.next = NULL;
@@ -1375,7 +1367,6 @@ object_s net_send(void *arg)
                     else
                         send->period = table[FTABLE_PERIOD].obj.tok->lexeme;
                     send->repeat = !!atoi(table[FTABLE_REPEAT].obj.tok->lexeme);
-                    
                     task_enqueue((task_s *)send);
                 }
             }
@@ -1467,12 +1458,64 @@ object_s net_size(void *arg)
 object_s net_kill(void *arg)
 {
     object_s obj;
+    arg_s *a;
+    task_s *t;
+    object_s *args = arg;
+    objlist_s flat, *flat_ = &flat;
+    objlist_s *head = NULL, *curr, *new;
     
-    obj.type = TYPE_VOID;
     obj.islazy = false;
     obj.child = NULL;
     obj.arglist = NULL;
     obj.tok = NULL;
+
+    
+    if(args->arglist->size < 1) {
+        error(
+              "Error at line %d: Not enough arguments supplied to kill.",
+              args->tok->lineno
+            );
+        obj.type = TYPE_ERROR;
+        return obj;
+    }
+    for(a = args->arglist->head; a; a = a->next) {
+        switch(a->obj.type) {
+            case TYPE_NODE:
+            case TYPE_STRING:
+                new = alloc(sizeof(*new));
+                new->obj = &a->obj;
+                new->next = NULL;
+                if(head) {
+                    curr->next= new;
+                    curr = curr->next;
+                }
+                else {
+                    head = new;
+                    curr = new;
+                }
+                break;
+            case TYPE_AGGREGATE:
+                flatten(&flat_, &a->obj);
+                if(head) {
+                    curr->next= flat.next;
+                }
+                else {
+                    head = new;
+                    curr = new;
+                }
+                while(curr->next)
+                    curr = curr->next;
+                break;
+            default:
+                error(
+                      "Error at line %d: Expected node or string type for kill.",
+                      args->tok->lineno
+                      );
+                break;
+        }
+    }
+    
+    obj.type = TYPE_VOID;
     return obj;
 }
 
@@ -1794,36 +1837,6 @@ task_s *task_dequeue(void)
     if(t)
         tqueue.head = tqueue.head->next;
     return t;
-}
-
-void *alloc(size_t size)
-{
-    void *ptr = malloc(size);
-    if(!ptr){
-        perror("Memory Allocation Error");
-        exit(EXIT_FAILURE);
-    }
-    return ptr;
-}
-
-void *allocz(size_t size)
-{
-    void *ptr = calloc(size, 1);
-    if(!ptr){
-        perror("Memory Allocation Error");
-        exit(EXIT_FAILURE);
-    }
-    return ptr;
-}
-
-void *ralloc(void *ptr, size_t size)
-{
-    ptr = realloc(ptr, size);
-    if(!ptr){
-        perror("Memory Allocation Error");
-        exit(EXIT_FAILURE);
-    }
-    return ptr;
 }
 
 char *strclone(char *str)
