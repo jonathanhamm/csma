@@ -1500,8 +1500,8 @@ object_s net_kill(void *arg)
                     curr->next= flat.next;
                 }
                 else {
-                    head = new;
-                    curr = new;
+                    head = flat.next;
+                    curr = flat.next;
                 }
                 while(curr->next)
                     curr = curr->next;
@@ -1514,9 +1514,14 @@ object_s net_kill(void *arg)
                 break;
         }
     }
-    for(curr = head; curr; curr = curr->next) {
-        print_object(curr->obj);
-        putchar('\n');
+    for(curr = head; curr; curr = new) {
+        t = alloc(sizeof(*t) + sizeof(char *));
+        t->func = FNET_KILL;
+        t->next = false;
+        *(char **)(t + 1) = curr->obj->tok->lexeme;
+        task_enqueue(t);
+        new = curr->next;
+        free(curr);
     }
     
     obj.type = TYPE_VOID;

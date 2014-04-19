@@ -33,6 +33,7 @@ static void process_tasks(void);
 static void create_node(char *id);
 static void send_message(send_s *send);
 static void kill_child(station_s *s);
+static void kill_childid(char *id);
 static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
@@ -116,6 +117,8 @@ void process_tasks(void)
             case FNET_SEND:
                 send_message((send_s *)t);
                 break;
+            case FNET_KILL:
+                kill_childid(*(char **)(t + 1));
             default:
                 break;
         }
@@ -146,8 +149,9 @@ void create_node(char *id)
         
         pid = fork();
         if(pid) {
-            /* synchronize child and parent */
+            /* wait for SIGUSR1 from child */
             pause();
+            
             station = alloc(sizeof(*station));
             station->pid = pid;
             station->pipe[0] = fd[0];
@@ -195,6 +199,16 @@ void kill_child(station_s *s)
     close(s->pipe[1]);
     kill(s->pid, SIGTERM);
 }
+
+void kill_childid(char *id)
+{
+    sym_record_s *rec;
+    
+    rec = sym_lookup(&station_table, id);
+    if(rec)
+        kill_child(rec->data.ptr);
+}
+
 
 uint32_t crc32(void *data, int size)
 {
