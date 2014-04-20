@@ -10,7 +10,7 @@
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
-//#include <util.h>
+#include <pthread.h>
 
 #include "parse.h"
 #include "network.h"
@@ -27,16 +27,19 @@ struct station_s
 };
 
 sym_table_s station_table;
+pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int pipe_fd[2];
 static void process_tasks(void);
 static void create_node(char *id);
 static void send_message(send_s *send);
+static void *process_request(void *);
 static void kill_child(station_s *s);
 static void kill_childid(char *id);
 static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
+static void sigUSR2(int sig);
 static void sigINT(int sig);
 
 int main(int argc, char *argv[])
@@ -44,9 +47,11 @@ int main(int argc, char *argv[])
     int c, status;
     char *src;
     buf_s *in;
-    station_s *s;
     struct sigaction sa;
     sym_record_s *rec, *recb;
+    pthread_t req_thread;
+    sigset_t mask;
+
     
     if(argc > 1) {
         src = readfile(argv[1]);
@@ -67,13 +72,36 @@ int main(int argc, char *argv[])
         perror("Error installing handler for SIGUSR1");
         exit(EXIT_FAILURE);
     }
+
+    sa.sa_handler = sigUSR2;
+    sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+    status = sigaction(SIGUSR2, &sa, NULL);
+    if(status < 0) {
+        perror("Error installing handler for SIGUSR2");
+        exit(EXIT_FAILURE);
+    }
     
     status = pipe(pipe_fd);
     if(status < 0) {
         perror("Error Creating Pipe");
         exit(EXIT_FAILURE);
     }
-        
+    
+    status = pthread_create(&req_thread, NULL, process_request, NULL);
+    if(status) {
+        perror("Failure to set up thread");
+        exit(EXIT_FAILURE);
+    }
+    
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGUSR2);
+    status = pthread_sigmask(SIG_BLOCK, &mask, NULL);
+    if(status) {
+        perror("Failure to mask SIGUSR2 in parent thread.");
+        exit(EXIT_FAILURE);
+    }
+    
     process_tasks();
     
     in = buf_init();
@@ -209,6 +237,12 @@ void kill_childid(char *id)
         kill_child(rec->data.ptr);
 }
 
+void *process_request(void *arg)
+{
+    while(1) {
+        sleep(1);
+    }
+}
 
 uint32_t crc32(void *data, int size)
 {
@@ -220,6 +254,11 @@ uint32_t crc32(void *data, int size)
 
 void sigUSR1(int sig)
 {
+}
+
+void sigUSR2(int sig)
+{
+    puts("SIGUSR2 called");
 }
 
 void sigINT(int sig)

@@ -1634,8 +1634,7 @@ void print_object(void *object)
         case TYPE_ARGLIST:
         default:
             puts("illegal state");
-            //assert(false);
-            asm("hlt");
+            assert(false);
             break;
     }
 }
@@ -1826,7 +1825,7 @@ void buf_reset(buf_s **b)
     (*b)->size = 0;
 }
 
-void buf_free(buf_s *b)
+inline void buf_free(buf_s *b)
 {
     free(b);
 }

@@ -164,8 +164,6 @@ struct {
 }
 tqueue;
 
-extern sym_table_s station_table;
-
 extern bool parse(char *src);
 
 extern void error(const char *fs, ...);
@@ -177,7 +175,7 @@ extern void buf_addc(buf_s **b, int c);
 extern void buf_addstr(buf_s **b, char *str, size_t size);
 extern void buf_trim(buf_s **b);
 extern void buf_reset(buf_s **b);
-extern void buf_free(buf_s *b);
+extern inline void buf_free(buf_s *b);
 
 extern void sym_insert(sym_table_s *table, char *key, sym_data_u data);
 extern sym_record_s *sym_lookup(sym_table_s *table, char *key);

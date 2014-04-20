@@ -107,6 +107,7 @@ void parse_send(void)
     read(tasks[0], &repeat, sizeof(repeat));
     
     printf("Processed a send with paylod: %s\n", payload);
+    kill(getppid(), SIGUSR2);
 }
 
 void sigUSR1(int sig)
