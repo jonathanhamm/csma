@@ -7,10 +7,33 @@
 
 #include <signal.h>
 #include <unistd.h>
+#include <pthread.h>
+
+typedef struct send_s send_s;
+
+struct send_s
+{
+    size_t dlen;
+    char *dst;
+    size_t size;
+    char *payload;
+    size_t plen;
+    char *period;
+    bool repeat;
+    send_s *next;
+};
 
 static int medium[2];
 static int tasks[2];
 static char *name;
+
+static struct
+{
+    send_s *head;
+    send_s *tail;
+}
+send_queue;
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static volatile sig_atomic_t pipe_full;
 
@@ -26,7 +49,6 @@ int main(int argc, char *argv[])
     ssize_t rstatus;
     struct sigaction sa;
     
-
     if(argc != 3) {
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
         exit(EXIT_FAILURE);
@@ -84,29 +106,37 @@ int main(int argc, char *argv[])
 
 void parse_send(void)
 {
-    bool repeat;
-    size_t dlen, plen, size;
-    char *dst, *payload, *period;
+    send_s *s = alloc(sizeof(*s));
     
-    read(tasks[0], &dlen, sizeof(dlen));
+    read(tasks[0], &s->dlen, sizeof(s->dlen));
     
-    dst = alloc(dlen+1);
-    dst[dlen] = '\0';
-    read(tasks[0], dst, dlen);
+    s->dst = alloc(s->dlen+1);
+    s->dst[s->dlen] = '\0';
+    read(tasks[0], s->dst, s->dlen);
     
-    read(tasks[0], &size, sizeof(size));
-    payload = alloc(size+1);
-    payload[size] = '\0';
-    read(tasks[0], payload, size);
+    read(tasks[0], &s->size, sizeof(s->size));
+    s->payload = alloc(s->size+1);
+    s->payload[s->size] = '\0';
+    read(tasks[0], s->payload, s->size);
     
-    read(tasks[0], &plen, sizeof(plen));
-    period = alloc(plen+1);
-    period[plen] = '\0';
-    read(tasks[0], period, plen);
+    read(tasks[0], &s->plen, sizeof(s->plen));
+    s->period = alloc(s->plen+1);
+    s->period[s->plen] = '\0';
+    read(tasks[0], s->period, s->plen);
     
-    read(tasks[0], &repeat, sizeof(repeat));
+    read(tasks[0], &s->repeat, sizeof(s->repeat));
     
-    printf("Processed a send with paylod: %s\n", payload);
+    s->next = NULL;
+    
+    pthread_mutex_lock(&queue_lock);
+    if(send_queue.head)
+        send_queue.tail->next = s;
+    else
+        send_queue.head = s;
+    send_queue.tail = s;
+    pthread_mutex_unlock(&queue_lock);
+    
+    printf("Processed a send with paylod: %s\n", s->payload);
     kill(getppid(), SIGUSR2);
 }
 

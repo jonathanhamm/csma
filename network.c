@@ -185,7 +185,9 @@ void create_node(char *id)
             station->pipe[0] = fd[0];
             station->pipe[1] = fd[1];
             
+            pthread_mutex_lock(&station_table_lock);
             sym_insert(&station_table, id, (sym_data_u){.ptr = station});
+            pthread_mutex_unlock(&station_table_lock);
         }
         else if(pid < 0) {
             perror("Failed to create station process.");
@@ -239,7 +241,7 @@ void kill_childid(char *id)
 
 void *process_request(void *arg)
 {
-    while(1) {
+    while(true) {
         sleep(1);
     }
 }
