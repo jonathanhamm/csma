@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdbool.h>
 #include <errno.h>
 
@@ -13,6 +14,7 @@ typedef struct send_s send_s;
 
 struct send_s
 {
+    pthread_t thread;
     size_t dlen;
     char *dst;
     size_t size;
@@ -20,27 +22,18 @@ struct send_s
     size_t plen;
     char *period;
     bool repeat;
-    send_s *next;
 };
 
 static int medium[2];
 static int tasks[2];
 static char *name;
-
-static struct
-{
-    send_s *head;
-    send_s *tail;
-}
-send_queue;
-pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t name_len;
 
 static volatile sig_atomic_t pipe_full;
-
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
-
 static void parse_send(void);
+static void *send_thread(void *);
 
 int main(int argc, char *argv[])
 {
@@ -74,6 +67,7 @@ int main(int argc, char *argv[])
     }
     
     name = argv[1];
+    name_len = strlen(name);
     printf("Successfully Started Station: %s\n", name);
     
     kill(getppid(), SIGUSR1);
@@ -126,18 +120,25 @@ void parse_send(void)
     
     read(tasks[0], &s->repeat, sizeof(s->repeat));
     
-    s->next = NULL;
+    pthread_create(&s->thread, NULL, send_thread, s);
     
-    pthread_mutex_lock(&queue_lock);
-    if(send_queue.head)
-        send_queue.tail->next = s;
-    else
-        send_queue.head = s;
-    send_queue.tail = s;
-    pthread_mutex_unlock(&queue_lock);
+}
+
+void *send_thread(void *arg)
+{
+    send_s *s = arg;
     
-    printf("Processed a send with paylod: %s\n", s->payload);
-    kill(getppid(), SIGUSR2);
+    do {
+        
+    }
+    while(s->repeat);
+    
+    free(s->dst);
+    free(s->period);
+    free(s->payload);
+    free(s);
+    
+    pthread_exit(NULL);
 }
 
 void sigUSR1(int sig)

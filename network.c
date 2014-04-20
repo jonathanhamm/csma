@@ -51,7 +51,6 @@ int main(int argc, char *argv[])
     sym_record_s *rec, *recb;
     pthread_t req_thread;
     sigset_t mask;
-
     
     if(argc > 1) {
         src = readfile(argv[1]);
