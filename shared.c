@@ -1,6 +1,5 @@
 #include "shared.h"
 #include <stdio.h>
-#include <stdlib.h>
 
 void *alloc(size_t size)
 {

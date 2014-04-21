@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include <zlib.h>
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
@@ -42,7 +43,6 @@ static void send_message(send_s *send);
 static void *process_request(void *);
 static void kill_child(station_s *s);
 static void kill_childid(char *id);
-static uint32_t crc32(void *data, int size);
 
 static void sigUSR1(int sig);
 static void sigUSR2(int sig);
@@ -265,14 +265,6 @@ void *process_request(void *arg)
         sleep(1);
         *medium_status = rand()%2;
     }
-}
-
-uint32_t crc32(void *data, int size)
-{
-    uint8_t *d = data;
-    uint32_t sum = 1;
-    
-    return sum;
 }
 
 void sigUSR1(int sig)

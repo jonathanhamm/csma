@@ -2,8 +2,10 @@
 #define SHARED_H_
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #define SHM_KEY 8945
+#define CRC_POLYNOMIAL 0x11EDC6F41
 
 typedef enum funcs_e funcs_e;
 typedef struct frame_s frame_s;

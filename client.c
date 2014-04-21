@@ -5,9 +5,11 @@
 #include <math.h>
 #include <errno.h>
 
+#include <zlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -43,7 +45,7 @@ static void sigTERM(int sig);
 static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
-static void sendRTS(void);
+static void sendRTS(send_s *s);
 
 int main(int argc, char *argv[])
 {
@@ -174,7 +176,7 @@ void *send_thread(void *arg)
     free(s->period);
     free(s->payload);
     free(s);
-    
+        
     pthread_exit(NULL);
 }
 
@@ -195,8 +197,31 @@ not_idle:
     /* pick random number between 0 and 2^k - 1 */
     R = rand() % (1 << K);
     
+    sendRTS(s);
+    
 }
 
+void sendRTS(send_s *s)
+{
+#define RTS_SUBTYPE 0x0b00;
+    frame_s frame = {0};
+    char *fptr = (char *)&frame;
+    
+    frame.FC = RTS_SUBTYPE;
+    
+    memcpy(frame.addr1, name, name_len);
+    memcpy(frame.addr1, s->dst, s->dlen);
+    
+    
+    frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
+    
+    while(fptr - (char *)&frame < sizeof(frame)) {
+        write(medium[1], fptr, 1);
+        fptr++;
+        sched_yield();
+    }
+
+}
 
 void sigUSR1(int sig)
 {
