@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "parse.h"
 #include "network.h"
