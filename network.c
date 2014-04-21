@@ -10,7 +10,6 @@
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -94,7 +93,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_CREAT|S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_CREAT|IPC_R|IPC_W);
     if(shm_medium < 0) {
         perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);

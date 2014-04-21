@@ -11,7 +11,6 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/time.h>
-#include <semaphore.h>
 
 #include "shared.h"
 
@@ -33,7 +32,6 @@ static int medium[2];
 static int tasks[2];
 static char *name;
 static size_t name_len;
-static sem_t *sem;
 static int shm_medium;
 static char *medium_status;
 static struct timespec ifs;
@@ -58,7 +56,13 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-// ifs_d = strtod(
+    /* seed random number generator */
+    srand((int)time(NULL));
+    
+    /* set ifs time for this station */
+    ifs_d = strtod(argv[2], NULL);
+    ifs.tv_sec = (long)ifs_d;
+    ifs.tv_nsec = (long)((ifs_d - ifs.tv_sec)*1e9);
     
     sscanf(argv[3], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
     
@@ -80,7 +84,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_medium = shmget(SHM_KEY, sizeof(char), S_IRUSR);
+    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_R);
     if(shm_medium < 0) {
         perror("Failed to locate shared memory segment.");
         exit(EXIT_FAILURE);
@@ -181,10 +185,10 @@ not_idle:
     while(*medium_status);
     
     //wait IFS time
+    nanosleep(&ifs, NULL);
     
     if(*medium_status)
         goto not_idle;
-    
     
     
 }
