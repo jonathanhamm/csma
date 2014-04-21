@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include <signal.h>
 #include <unistd.h>
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
     
     kill(getppid(), SIGUSR1);
     
-    while(1) {
+    while(true) {
         if(pipe_full) {
             rstatus = read(tasks[0], &f, sizeof(f));
             if(rstatus < sizeof(f)) {
@@ -127,24 +128,14 @@ void parse_send(void)
 void *send_thread(void *arg)
 {
     send_s *s = arg;
-    pthread_mutex_t tm;
-    pthread_cond_t tc;
     struct timespec time;
     double wait_d = strtod(s->period, NULL);
-    
-    time.tv_sec = 0;
-    time.tv_nsec = (long)(wait_d * 1E9);
-    
-    
-    pthread_mutex_init(&tm, NULL);
-    pthread_cond_init(&tc, NULL);
+
+    time.tv_sec = (long)wait_d;
+    time.tv_nsec = (long)((wait_d - time.tv_sec)*1e9);
     
     do {
-        pthread_mutex_lock(&tm);
-        pthread_cond_timedwait(&tc, &tm, &time);
-        pthread_mutex_unlock(&tm);
-        printf("nsec %f %s\n", wait_d, s->period);
-        
+        nanosleep(&time, NULL);
     }
     while(s->repeat);
     
@@ -152,9 +143,6 @@ void *send_thread(void *arg)
     free(s->period);
     free(s->payload);
     free(s);
-    
-    pthread_mutex_destroy(&tm);
-    pthread_cond_destroy(&tc);
     
     pthread_exit(NULL);
 }
