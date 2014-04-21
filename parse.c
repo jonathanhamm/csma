@@ -652,6 +652,7 @@ exp_s parse_expression(void)
     exp.obj.arglist = NULL;
     exp.obj.child = NULL;
     exp.obj.tok = tok();
+    exp.obj.islazy = false;
     exp.acc = NULL;
     switch(tok()->type) {
         case TOK_TYPE_NUM:
@@ -1354,10 +1355,8 @@ object_s net_send(void *arg)
                     send->dst = dst_->obj->tok->lexeme;
                     send->size = payload->size;
                     send->payload = payload->buf;
-                    if(table[FTABLE_PERIOD].obj.islazy) {
-                        assert(false);
+                    if(table[FTABLE_PERIOD].obj.islazy)
                         send->period = "-1";
-                    }
                     else
                         send->period = table[FTABLE_PERIOD].obj.tok->lexeme;
                     send->repeat = !!atoi(table[FTABLE_REPEAT].obj.tok->lexeme);
