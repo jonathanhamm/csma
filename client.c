@@ -1,5 +1,3 @@
-#include "shared.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,8 +7,13 @@
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <sys/time.h>
 #include <semaphore.h>
+
+#include "shared.h"
 
 typedef struct send_s send_s;
 
@@ -31,12 +34,15 @@ static int tasks[2];
 static char *name;
 static size_t name_len;
 static sem_t *sem;
+static int shm_medium;
+static char *medium_status;
 
 static volatile sig_atomic_t pipe_full;
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
 static void parse_send(void);
 static void *send_thread(void *);
+static void doCSMACA(send_s *s);
 
 int main(int argc, char *argv[])
 {
@@ -69,12 +75,18 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    sem = sem_open(SEM_NAME, O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
-    if(sem == SEM_FAILED) {
-        perror("Failed to initialize semaphore.");
+    shm_medium = shmget(SHM_KEY, sizeof(char), S_IRUSR);
+    if(shm_medium < 0) {
+        perror("Failed to locate shared memory segment.");
         exit(EXIT_FAILURE);
     }
-
+    
+    medium_status = shmat(shm_medium, NULL, 0);
+    if(medium_status == (char *)-1) {
+        perror("Failed to attached shared memory segment.");
+        exit(EXIT_FAILURE);
+    }
+    
     name = argv[1];
     name_len = strlen(name);
     printf("Successfully Started Station: %s\n", name);
@@ -144,6 +156,7 @@ void *send_thread(void *arg)
     
     do {
         nanosleep(&time, NULL);
+        doCSMACA(s);
     }
     while(s->repeat);
     
@@ -151,9 +164,15 @@ void *send_thread(void *arg)
     free(s->period);
     free(s->payload);
     free(s);
-    
+
     pthread_exit(NULL);
 }
+
+void doCSMACA(send_s *s)
+{
+    
+}
+
 
 void sigUSR1(int sig)
 {

@@ -12,9 +12,9 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <pthread.h>
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 
 #include "parse.h"
 #include "network.h"
@@ -32,7 +32,9 @@ struct station_s
 
 sym_table_s station_table;
 pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
-static sem_t *sem;
+
+static int shm_medium;
+static char *medium_status;
 
 static int pipe_fd[2];
 static void process_tasks(void);
@@ -92,11 +94,18 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    sem = sem_open(SEM_NAME, O_CREAT|O_EXCL, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
-    if(sem == SEM_FAILED) {
-        perror("Failed to initialize semaphore.");
+    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_CREAT|S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+    if(shm_medium < 0) {
+        perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);
     }
+    
+    medium_status = shmat(shm_medium, NULL, 0);
+    if(medium_status == (char *)-1) {
+        perror("Failed to attached shared memory segment.");
+        exit(EXIT_FAILURE);
+    }
+    *medium_status = '\0';
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -139,18 +148,6 @@ int main(int argc, char *argv[])
             free(rec);
             rec = recb;
         }
-    }
-    
-    status = sem_close(sem);
-    if(status < 0) {
-        perror("Failed to close semaphore");
-        exit(EXIT_FAILURE);
-    }
-    
-    status = sem_unlink(SEM_NAME);
-    if(status < 0) {
-        perror("Failed to unlink semaphore");
-        exit(EXIT_FAILURE);
     }
     
     exit(EXIT_SUCCESS);

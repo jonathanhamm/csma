@@ -3,7 +3,7 @@
 
 #include <unistd.h>
 
-#define SEM_NAME "CSMA_LINK"
+#define SHM_KEY 8945
 
 typedef enum funcs_e funcs_e;
 typedef struct frame_s frame_s;
