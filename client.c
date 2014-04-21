@@ -132,7 +132,7 @@ void *send_thread(void *arg)
     struct timespec time;
     double wait_d = strtod(s->period, NULL);
     
-    time.tv_nsec = (long)(wait_d * 1E9);
+    time.tv_nsec = (long)(wait_d);
     
     pthread_mutex_init(&tm, NULL);
     pthread_cond_init(&tc, NULL);
@@ -141,6 +141,8 @@ void *send_thread(void *arg)
         pthread_mutex_lock(&tm);
         pthread_cond_timedwait(&tc, &tm, &time);
         pthread_mutex_unlock(&tm);
+        printf("repeat: %d\n", s->repeat);
+        
     }
     while(s->repeat);
     

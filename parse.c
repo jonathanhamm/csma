@@ -963,7 +963,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.fread = false;
                     check.write = false;
                 }
-                puts("exiting a");
                 return check;
             }
         }
@@ -984,7 +983,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
                     check.fread = true;
                     check.write = false;
                 }
-                puts("exiting b");
                 return check;
             }
         }
@@ -994,7 +992,6 @@ check_s check_entry(scope_s *root, access_list_s *acc)
             check.fread = false;
             check.last = acc;
             check.result = rec->data.ptr;
-            puts("exiting c");
             return check;
         }
      }
@@ -1118,8 +1115,10 @@ object_s net_send(void *arg)
         for(a = args->arglist->head; a; a = a->next) {
             if(a->name) {
                 for(i = 0; i < FTBABLE_SIZE; i++) {
+                    printf("parameter %s\n", table[i].name);
                     if(!strcmp(table[i].name, a->name)) {
                         if(!table[i].filled) {
+                            
                             table[i].filled = true;
                             table[i].obj = a->obj;
                             if(!(table[i].type & a->obj.type)) {
@@ -1282,7 +1281,6 @@ object_s net_send(void *arg)
         table[FTABLE_SRC].obj.arglist = NULL;
         table[FTABLE_SRC].obj.tok = NULL;
         table[FTABLE_SRC].filled = true;
-        table[FTABLE_SRC].name = "_root";
     }
 
     if(table[FTABLE_DST].filled)
@@ -1294,7 +1292,6 @@ object_s net_send(void *arg)
         table[FTABLE_DST].obj.arglist = NULL;
         table[FTABLE_DST].obj.tok = NULL;
         table[FTABLE_DST].filled = true;
-        table[FTABLE_DST].name = "_root";
     }
     
     if(table[FTABLE_MSG].filled)
@@ -1322,7 +1319,6 @@ object_s net_send(void *arg)
         table[FTABLE_PERIOD].obj.arglist = NULL;
         table[FTABLE_PERIOD].obj.tok = dummy;
         table[FTABLE_PERIOD].filled = true;
-        table[FTABLE_PERIOD].name = "_auto";
     }
     
     if(table[FTABLE_REPEAT].filled)
@@ -1342,7 +1338,6 @@ object_s net_send(void *arg)
         table[FTABLE_REPEAT].obj.arglist = NULL;
         table[FTABLE_REPEAT].obj.tok = dummy;
         table[FTABLE_REPEAT].filled = true;
-        table[FTABLE_REPEAT].name = "_auto";
     }
     
     flatten(&src_, &table[FTABLE_SRC].obj);
