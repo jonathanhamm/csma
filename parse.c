@@ -1395,7 +1395,7 @@ object_s net_node(void *arg)
     enum {
         MIN_NODE_ARGS = 1,
         MAX_NODE_ARGS = 2,
-        
+        MAX_NAME_SIZE = 6
     };
     
     objr.tok = obj->arglist->head->obj.tok;
@@ -1422,6 +1422,15 @@ object_s net_node(void *arg)
                 if(!strcmp("name", a->name)) {
                     if(a->obj.type == TYPE_STRING) {
                         if(!gotname) {
+                            if(strlen(a->obj.tok->lexeme)-2 > MAX_NAME_SIZE) {
+                                error(
+                                      "Error at line %u: Node name %s exceeds 6 bytes.",
+                                      obj->tok->lineno, a->obj.tok->lexeme
+                                      );
+                                free(t);
+                                objr.type = TYPE_ERROR;
+                                return objr;
+                            }
                             *(char **)(t + 1) = a->obj.tok->lexeme;
                             gotname = true;
                         }
@@ -1476,6 +1485,15 @@ object_s net_node(void *arg)
                 switch(a->obj.type) {
                     case TYPE_STRING:
                         if(!gotname) {
+                            if(strlen(a->obj.tok->lexeme)-2 > MAX_NAME_SIZE) {
+                                error(
+                                      "Error at line %u: Node name %s exceeds 6 bytes.",
+                                      obj->tok->lineno, a->obj.tok->lexeme
+                                      );
+                                free(t);
+                                objr.type = TYPE_ERROR;
+                                return objr;
+                            }
                             *(char **)(t + 1) = a->obj.tok->lexeme;
                             gotname = true;
                         }

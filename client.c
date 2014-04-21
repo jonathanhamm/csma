@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 #include <errno.h>
 
 #include <signal.h>
@@ -33,7 +34,7 @@ static int tasks[2];
 static char *name;
 static size_t name_len;
 static int shm_medium;
-static char *medium_status;
+static char *medium_busy;
 static struct timespec ifs;
 
 static volatile sig_atomic_t pipe_full;
@@ -42,6 +43,7 @@ static void sigTERM(int sig);
 static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
+static void sendRTS(void);
 
 int main(int argc, char *argv[])
 {
@@ -90,8 +92,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    medium_status = shmat(shm_medium, NULL, 0);
-    if(medium_status == (char *)-1) {
+    medium_busy = shmat(shm_medium, NULL, 0);
+    if(medium_busy == (char *)-1) {
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
@@ -129,7 +131,7 @@ int main(int argc, char *argv[])
 }
 
 void parse_send(void)
-{
+{    
     send_s *s = alloc(sizeof(*s));
     
     read(tasks[0], &s->dlen, sizeof(s->dlen));
@@ -151,7 +153,6 @@ void parse_send(void)
     read(tasks[0], &s->repeat, sizeof(s->repeat));
     
     pthread_create(&s->thread, NULL, send_thread, s);
-    
 }
 
 void *send_thread(void *arg)
@@ -179,17 +180,20 @@ void *send_thread(void *arg)
 
 void doCSMACA(send_s *s)
 {
-    int K = 0;
+    int K = 0, R;
     
 not_idle:
-    while(*medium_status);
+    /* wait until idle and waste tons of cycles in the process */
+    while(*medium_busy);
     
-    //wait IFS time
+    /* wait ifs time */
     nanosleep(&ifs, NULL);
     
-    if(*medium_status)
+    if(*medium_busy)
         goto not_idle;
     
+    /* pick random number between 0 and 2^k - 1 */
+    R = rand() % (1 << K);
     
 }
 
