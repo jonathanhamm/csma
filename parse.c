@@ -1065,7 +1065,7 @@ object_s net_send(void *arg)
     arg_s *a;
     object_s *args = arg;
     object_s ret;
-    token_s *dummy;
+    static token_s *dummy;
     send_s *send;
     buf_s *payload;
     objlist_s   src, *src_ = &src,
@@ -1081,7 +1081,7 @@ object_s net_send(void *arg)
         FTABLE_MSG,
         FTABLE_PERIOD,
         FTABLE_REPEAT,
-        FTBABLE_SIZE
+        FTABLE_SIZE
     };
     
     static struct {
@@ -1114,11 +1114,9 @@ object_s net_send(void *arg)
     else {
         for(a = args->arglist->head; a; a = a->next) {
             if(a->name) {
-                for(i = 0; i < FTBABLE_SIZE; i++) {
-                    printf("parameter %s\n", table[i].name);
+                for(i = 0; i < FTABLE_SIZE; i++) {
                     if(!strcmp(table[i].name, a->name)) {
                         if(!table[i].filled) {
-                            
                             table[i].filled = true;
                             table[i].obj = a->obj;
                             if(!(table[i].type & a->obj.type)) {
@@ -1259,7 +1257,6 @@ object_s net_send(void *arg)
                         }
                         break;
                     default:
-                        asm("hlt");
                         error(
                               "Error at line %d: Incompatible type passed from object %s to function "
                               "\"send\"",
@@ -1280,7 +1277,6 @@ object_s net_send(void *arg)
         table[FTABLE_SRC].obj.type = TYPE_AGGREGATE;
         table[FTABLE_SRC].obj.arglist = NULL;
         table[FTABLE_SRC].obj.tok = NULL;
-        table[FTABLE_SRC].filled = true;
     }
 
     if(table[FTABLE_DST].filled)
@@ -1291,7 +1287,6 @@ object_s net_send(void *arg)
         table[FTABLE_DST].obj.type = TYPE_AGGREGATE;
         table[FTABLE_DST].obj.arglist = NULL;
         table[FTABLE_DST].obj.tok = NULL;
-        table[FTABLE_DST].filled = true;
     }
     
     if(table[FTABLE_MSG].filled)
@@ -1305,39 +1300,41 @@ object_s net_send(void *arg)
     if(table[FTABLE_PERIOD].filled)
         table[FTABLE_PERIOD].filled = false;
     else  {
-        dummy = alloc(sizeof(*dummy));
-        dummy->lexeme = strclone("0");
-        dummy->type = TOK_TYPE_NUM;
-        dummy->att = TOK_ATT_INT;
-        dummy->next = NULL;
-        dummy->prev = NULL;
-        dummy->lineno = 0;
-        dummy->marked = true;
+        if(!dummy) {
+            dummy = alloc(sizeof(*dummy));
+            dummy->lexeme = strclone("0");
+            dummy->type = TOK_TYPE_NUM;
+            dummy->att = TOK_ATT_INT;
+            dummy->next = NULL;
+            dummy->prev = NULL;
+            dummy->lineno = 0;
+            dummy->marked = true;
+        }
         table[FTABLE_PERIOD].obj.child = NULL;
         table[FTABLE_PERIOD].obj.islazy = false;
         table[FTABLE_PERIOD].obj.type = TYPE_INT;
         table[FTABLE_PERIOD].obj.arglist = NULL;
         table[FTABLE_PERIOD].obj.tok = dummy;
-        table[FTABLE_PERIOD].filled = true;
     }
     
     if(table[FTABLE_REPEAT].filled)
         table[FTABLE_REPEAT].filled = false;
     else {
-        dummy = alloc(sizeof(*dummy));
-        dummy->lexeme = strclone("0");
-        dummy->type = TOK_TYPE_NUM;
-        dummy->att = TOK_ATT_INT;
-        dummy->next = NULL;
-        dummy->prev = NULL;
-        dummy->lineno = 0;
-        dummy->marked = true;
+        if(!dummy) {
+            dummy = alloc(sizeof(*dummy));
+            dummy->lexeme = strclone("0");
+            dummy->type = TOK_TYPE_NUM;
+            dummy->att = TOK_ATT_INT;
+            dummy->next = NULL;
+            dummy->prev = NULL;
+            dummy->lineno = 0;
+            dummy->marked = true;
+        }
         table[FTABLE_REPEAT].obj.child = NULL;
         table[FTABLE_REPEAT].obj.islazy = false;
         table[FTABLE_REPEAT].obj.type = TYPE_INT;
         table[FTABLE_REPEAT].obj.arglist = NULL;
         table[FTABLE_REPEAT].obj.tok = dummy;
-        table[FTABLE_REPEAT].filled = true;
     }
     
     flatten(&src_, &table[FTABLE_SRC].obj);
@@ -1357,8 +1354,10 @@ object_s net_send(void *arg)
                     send->dst = dst_->obj->tok->lexeme;
                     send->size = payload->size;
                     send->payload = payload->buf;
-                    if(table[FTABLE_PERIOD].obj.islazy)
+                    if(table[FTABLE_PERIOD].obj.islazy) {
+                        assert(false);
                         send->period = "-1";
+                    }
                     else
                         send->period = table[FTABLE_PERIOD].obj.tok->lexeme;
                     send->repeat = !!atoi(table[FTABLE_REPEAT].obj.tok->lexeme);
@@ -1376,6 +1375,9 @@ object_s net_send(void *arg)
         bck = dst_->next;
         free(dst_);
     }
+    
+    for(i = 0; i < FTABLE_SIZE; i++)
+        table[i].obj = (object_s ){0};
     
     ret.type = TYPE_VOID;
     ret.islazy = false;
