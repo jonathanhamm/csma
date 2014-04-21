@@ -3,6 +3,8 @@
 
 #include <unistd.h>
 
+#define SEM_NAME "CSMA_LINK"
+
 typedef enum funcs_e funcs_e;
 typedef struct frame_s frame_s;
 

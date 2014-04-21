@@ -20,7 +20,6 @@
 #include "network.h"
 #include "shared.h"
 
-#define SEM_NAME "bob"
 #define CLIENT_PATH "./client"
 
 typedef struct station_s station_s;
@@ -93,15 +92,11 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    sem = sem_open("semaphore_bob", O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
+    sem = sem_open(SEM_NAME, O_CREAT|O_EXCL, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
     if(sem == SEM_FAILED) {
         perror("Failed to initialize semaphore.");
         exit(EXIT_FAILURE);
     }
-    printf("Created semaphore: %p\n", sem);
-   // sem_close(sem);
-   // sem_unlink(SEM_NAME);
-
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -116,7 +111,6 @@ int main(int argc, char *argv[])
         perror("Failure to mask SIGUSR2 in parent thread.");
         exit(EXIT_FAILURE);
     }
-
 
     process_tasks();
     
@@ -146,6 +140,19 @@ int main(int argc, char *argv[])
             rec = recb;
         }
     }
+    
+    status = sem_close(sem);
+    if(status < 0) {
+        perror("Failed to close semaphore");
+        exit(EXIT_FAILURE);
+    }
+    
+    status = sem_unlink(SEM_NAME);
+    if(status < 0) {
+        perror("Failed to unlink semaphore");
+        exit(EXIT_FAILURE);
+    }
+    
     exit(EXIT_SUCCESS);
 }
 
@@ -185,7 +192,7 @@ void create_node(char *id)
             perror("Error Creating Pipe");
             exit(EXIT_FAILURE);
         }
-        sprintf(fd_buf, "%d.%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1], *sem);
+        sprintf(fd_buf, "%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
         argv[2] = fd_buf;

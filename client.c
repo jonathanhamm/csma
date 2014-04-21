@@ -30,7 +30,7 @@ static int medium[2];
 static int tasks[2];
 static char *name;
 static size_t name_len;
-static sem_t sem;
+static sem_t *sem;
 
 static volatile sig_atomic_t pipe_full;
 static void sigUSR1(int sig);
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
         exit(EXIT_FAILURE);
     }
-    sscanf(argv[2], "%d.%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1], &sem);
+    sscanf(argv[2], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
         perror("Error installing handler for SIGUSR1");
         exit(EXIT_FAILURE);
     }
-    
+
     sa.sa_handler = sigTERM;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
@@ -69,6 +69,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    sem = sem_open(SEM_NAME, O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
+    if(sem == SEM_FAILED) {
+        perror("Failed to initialize semaphore.");
+        exit(EXIT_FAILURE);
+    }
+
     name = argv[1];
     name_len = strlen(name);
     printf("Successfully Started Station: %s\n", name);
