@@ -35,10 +35,10 @@ pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int shm_medium;
 static char *medium_status;
-
 static int pipe_fd[2];
+
 static void process_tasks(void);
-static void create_node(char *id);
+static void create_node(char *id, char *ifs);
 static void send_message(send_s *send);
 static void *process_request(void *);
 static void kill_child(station_s *s);
@@ -160,7 +160,7 @@ void process_tasks(void)
     while((t = task_dequeue())) {
         switch(t->func) {
             case FNET_NODE:
-                create_node(*(char **)(t + 1));
+                create_node(*(char **)(t + 1), *((char **)(t + 1) + 1));
                 break;
             case FNET_SEND:
                 send_message((send_s *)t);
@@ -174,11 +174,11 @@ void process_tasks(void)
     }
 }
 
-void create_node(char *id)
+void create_node(char *id, char *ifs)
 {
     int status;
     pid_t pid;
-    char *argv[4];
+    char *argv[5];
     char fd_buf[4*sizeof(int)+4];
     int fd[2];
     station_s *station;
@@ -192,8 +192,9 @@ void create_node(char *id)
         sprintf(fd_buf, "%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
-        argv[2] = fd_buf;
-        argv[3] = NULL;
+        argv[2] = ifs;
+        argv[3] = fd_buf;
+        argv[4] = NULL;
         
         pid = fork();
         if(pid) {
@@ -263,6 +264,7 @@ void *process_request(void *arg)
 {
     while(true) {
         sleep(1);
+        *medium_status = rand()%2;
     }
 }
 

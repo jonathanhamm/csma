@@ -36,6 +36,7 @@ static size_t name_len;
 static sem_t *sem;
 static int shm_medium;
 static char *medium_status;
+static struct timespec ifs;
 
 static volatile sig_atomic_t pipe_full;
 static void sigUSR1(int sig);
@@ -49,13 +50,17 @@ int main(int argc, char *argv[])
     int status;
     funcs_e f;
     ssize_t rstatus;
+    double ifs_d;
     struct sigaction sa;
     
-    if(argc != 3) {
+    if(argc != 4) {
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
         exit(EXIT_FAILURE);
     }
-    sscanf(argv[2], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
+
+// ifs_d = strtod(
+    
+    sscanf(argv[3], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
@@ -164,12 +169,23 @@ void *send_thread(void *arg)
     free(s->period);
     free(s->payload);
     free(s);
-
+    
     pthread_exit(NULL);
 }
 
 void doCSMACA(send_s *s)
 {
+    int K = 0;
+    
+not_idle:
+    while(*medium_status);
+    
+    //wait IFS time
+    
+    if(*medium_status)
+        goto not_idle;
+    
+    
     
 }
 

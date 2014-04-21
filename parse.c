@@ -130,8 +130,6 @@ static void clear_scope(scope_s *root);
 static void free_accesslist(access_list_s *l);
 static void free_tokens(void);
 
-static char *strclone(char *str);
-
 bool is_allocated(const void *ptr);
 
 bool parse(char *src)
@@ -300,7 +298,7 @@ void add_token(char *lexeme, tok_types_e type, tok_att_s att, int lineno)
     t->type = type;
     t->att = att;
     t->lineno = lineno;
-    t->lexeme = strclone(lexeme);
+    t->lexeme = strdup(lexeme);
     strcpy(t->lexeme, lexeme);
     t->next = NULL;
     t->marked = false;
@@ -1303,7 +1301,7 @@ object_s net_send(void *arg)
     else  {
         if(!dummy) {
             dummy = alloc(sizeof(*dummy));
-            dummy->lexeme = strclone("0");
+            dummy->lexeme = strdup("0");
             dummy->type = TOK_TYPE_NUM;
             dummy->att = TOK_ATT_INT;
             dummy->next = NULL;
@@ -1323,7 +1321,7 @@ object_s net_send(void *arg)
     else {
         if(!dummy) {
             dummy = alloc(sizeof(*dummy));
-            dummy->lexeme = strclone("0");
+            dummy->lexeme = strdup("0");
             dummy->type = TOK_TYPE_NUM;
             dummy->att = TOK_ATT_INT;
             dummy->next = NULL;
@@ -1391,11 +1389,24 @@ object_s net_node(void *arg)
     task_s *t;
     object_s *obj = arg;
     object_s objr;
+    arg_s *a;
+    const char *default_ifs = "0.2";
+    bool gotname = false, gotifs = false;
+    enum {
+        MIN_NODE_ARGS = 1,
+        MAX_NODE_ARGS = 2,
+        
+    };
     
-    if(obj->arglist->size > 1) {
+    objr.tok = obj->arglist->head->obj.tok;
+    obj->arglist->head->obj.tok->marked = true;
+    objr = obj->arglist->head->obj;
+    objr.type = TYPE_NODE;
+    
+    if(obj->arglist->size > MAX_NODE_ARGS || obj->arglist->size < MIN_NODE_ARGS) {
         error(
               "Error: Invalid number of arguments passed to function node at line %u. \
-              Expected node(string)",
+              Expected node(string) with optional int or real.",
               obj->tok->lineno
              );
         objr.type = TYPE_ERROR;
@@ -1403,25 +1414,125 @@ object_s net_node(void *arg)
         return objr;
     }
     else {
-        if(obj->arglist->head->obj.type == TYPE_STRING) {
-            t = allocz(sizeof(*t) + sizeof(char *));
-            t->func = FNET_NODE;
-            t->next = NULL;
-            *(char **)(t + 1) = obj->arglist->head->obj.tok->lexeme;
+        t = allocz(sizeof(*t) + 2*sizeof(char *));
+        t->func = FNET_NODE;
+        t->next = NULL;
+        for(a = obj->arglist->head; a; a = a->next) {
+            if(a->name) {
+                if(!strcmp("name", a->name)) {
+                    if(a->obj.type == TYPE_STRING) {
+                        if(!gotname) {
+                            *(char **)(t + 1) = a->obj.tok->lexeme;
+                            gotname = true;
+                        }
+                        else {
+                            error(
+                                  "Error at line %u: Duplicate node names supplied.",
+                                  obj->tok->lineno
+                                  );
+                            free(t);
+                            objr.type = TYPE_ERROR;
+                            return objr;
+                        }
+                    }
+                    else {
+                        error(
+                              "Error at line %u: Invalid type for node name. Expected string.",
+                              obj->tok->lineno
+                              );
+                        free(t);
+                        objr.type = TYPE_ERROR;
+                        return objr;
+                    }
+                }
+                else if(!strcmp("ifs", a->name)) {
+                    if(a->obj.type == TYPE_INT || a->obj.type == TYPE_REAL) {
+                        if(!gotifs) {
+                            *((char **)(t + 1) + 1) = a->obj.tok->lexeme;
+                            gotifs = true;
+                        }
+                        else {
+                            error(
+                                  "Error at line %u: Duplicate IFS times specified.",
+                                  obj->tok->lineno
+                                  );
+                            free(t);
+                            objr.type = TYPE_ERROR;
+                            return objr;
+                        }
+                    }
+                    else {
+                        error(
+                              "Error at line %u: Invalid type for node ifs. Expected int or real.",
+                              obj->tok->lineno
+                              );
+                        free(t);
+                        objr.type = TYPE_ERROR;
+                        return objr;
+                    }
+                }
+            }
+            else {
+                switch(a->obj.type) {
+                    case TYPE_STRING:
+                        if(!gotname) {
+                            *(char **)(t + 1) = a->obj.tok->lexeme;
+                            gotname = true;
+                        }
+                        else {
+                            error(
+                                  "Error at line %u: Duplicate node names supplied.",
+                                  obj->tok->lineno
+                                  );
+                            free(t);
+                            objr.type = TYPE_ERROR;
+                            return objr;
+                        }
+                        break;
+                    case TYPE_INT:
+                    case TYPE_REAL:
+                        if(!gotifs) {
+                            *((char **)(t + 1) + 1) = a->obj.tok->lexeme;
+                            gotifs = true;
+                        }
+                        else {
+                            error(
+                                  "Error at line %u: Duplicate IFS times specified.",
+                                  obj->tok->lineno
+                                  );
+                            free(t);
+                            objr.type = TYPE_ERROR;
+                            return objr;
+                        }
+                        break;
+                    default:
+                        error(
+                              "Error at line %u: Expected string, int, or real type argument for node(string).",
+                              obj->tok->lineno
+                              );
+                        gotname = gotifs = false;
+                        free(t);
+                        objr.type = TYPE_ERROR;
+                        return objr;
+
+                }
+            }
+        }
+        if(gotname) {
+            if(!gotifs)
+                *((char **)(t + 1) + 1) = strdup(default_ifs);
             task_enqueue(t);
         }
         else {
             error(
-                  "Error at line %u: Expected string type argument for node(string).",
+                  "Error at line %u: No node name supplied to node constructor function.",
                   obj->tok->lineno
                   );
+            free(t);
+            objr.type = TYPE_ERROR;
+            return objr;
         }
     }
-    objr.tok = obj->arglist->head->obj.tok;
-    obj->arglist->head->obj.tok->marked = true;
-    objr = obj->arglist->head->obj;
-    objr.type = TYPE_NODE;
-    printf("node: %s\n", objr.tok->lexeme);
     return objr;
 }
 
@@ -1841,14 +1952,6 @@ task_s *task_dequeue(void)
     if(t)
         tqueue.head = tqueue.head->next;
     return t;
-}
-
-char *strclone(char *str)
-{
-    char *clone = alloc(strlen(str)+1);
-    
-    strcpy(clone, str);
-    return clone;
 }
 
 bool is_allocated(const void *ptr)
