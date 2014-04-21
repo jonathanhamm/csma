@@ -99,8 +99,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     printf("Created semaphore: %p\n", sem);
-    sem_close(sem);
-    sem_unlink(SEM_NAME);
+   // sem_close(sem);
+   // sem_unlink(SEM_NAME);
 
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
