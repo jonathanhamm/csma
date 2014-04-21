@@ -10,12 +10,14 @@
 #include <termios.h>
 #include <signal.h>
 #include <unistd.h>
+#include <semaphore.h>
 #include <pthread.h>
 
 #include "parse.h"
 #include "network.h"
 #include "shared.h"
 
+#define SEM_NAME "bob"
 #define CLIENT_PATH "./client"
 
 typedef struct station_s station_s;
@@ -28,6 +30,7 @@ struct station_s
 
 sym_table_s station_table;
 pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
+static sem_t *sem;
 
 static int pipe_fd[2];
 static void process_tasks(void);
@@ -87,6 +90,16 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    sem = sem_open("semaphore_bob", O_CREAT, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP, 0);
+    if(sem == SEM_FAILED) {
+        perror("Failed to initialize semaphore.");
+        exit(EXIT_FAILURE);
+    }
+    printf("Created semaphore: %p\n", sem);
+    sem_close(sem);
+    sem_unlink(SEM_NAME);
+
+    
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
         perror("Failure to set up thread");
@@ -100,7 +113,8 @@ int main(int argc, char *argv[])
         perror("Failure to mask SIGUSR2 in parent thread.");
         exit(EXIT_FAILURE);
     }
-    
+
+
     process_tasks();
     
     in = buf_init();
@@ -168,7 +182,7 @@ void create_node(char *id)
             perror("Error Creating Pipe");
             exit(EXIT_FAILURE);
         }
-        sprintf(fd_buf, "%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1]);
+        sprintf(fd_buf, "%d.%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1], *sem);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
         argv[2] = fd_buf;

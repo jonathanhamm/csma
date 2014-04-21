@@ -5,11 +5,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <sys/time.h>
 
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/time.h>
+#include <semaphore.h>
 
 typedef struct send_s send_s;
 
@@ -29,6 +30,7 @@ static int medium[2];
 static int tasks[2];
 static char *name;
 static size_t name_len;
+static sem_t sem;
 
 static volatile sig_atomic_t pipe_full;
 static void sigUSR1(int sig);
@@ -47,7 +49,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
         exit(EXIT_FAILURE);
     }
-    sscanf(argv[2], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
+    sscanf(argv[2], "%d.%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1], &sem);
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
