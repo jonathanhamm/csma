@@ -1,7 +1,7 @@
 #ifndef SHARED_H_
 #define SHARED_H_
 
-#include <unistd.h>
+#include <stdint.h>
 
 #define SHM_KEY 8945
 
@@ -19,8 +19,11 @@ enum funcs_e {
 
 struct frame_s
 {
-    int size;
-    int type;
+    uint16_t FC;
+    uint16_t D;
+    uint8_t addr1[6];
+    uint8_t addr2[6];
+    uint32_t FCS;
 };
 
 extern void *alloc(size_t size);
