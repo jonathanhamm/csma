@@ -13,7 +13,8 @@
 #define RTS_SUBTYPE 0x0b00
 
 typedef enum funcs_e funcs_e;
-typedef struct frame_s frame_s;
+typedef struct rts_s rts_s;
+typedef struct cts_ack_s cts_ack_s;
 
 enum funcs_e {
     FNET_SEND,
@@ -24,12 +25,20 @@ enum funcs_e {
     FNET_PRINT
 };
 
-struct frame_s
+struct rts_s
 {
     uint16_t FC;
     uint16_t D;
     uint8_t addr1[6];
     uint8_t addr2[6];
+    uint32_t FCS;
+};
+
+struct cts_ack_s
+{
+    uint16_t FC;
+    uint16_t D;
+    uint8_t addr1[6];
     uint32_t FCS;
 };
 

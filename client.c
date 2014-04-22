@@ -18,6 +18,9 @@
 
 #include "shared.h"
 
+
+#define TIMER_TIME 1.5
+
 typedef struct send_s send_s;
 
 struct send_s
@@ -40,15 +43,21 @@ static int shm_medium;
 static char *medium_busy;
 static struct timespec ifs;
 static FILE *logf;
-
+static pthread_t timer;
+static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
-static void sigUSR1(int sig);
-static void sigTERM(int sig);
+static volatile sig_atomic_t timed_out;
+
 static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
+static void *timer_thread(void *);
 static void logevent(char *, ...);
+
+static void sigUSR1(int sig);
+static void sigTERM(int sig);
+static void sigALARM(int sig);
 
 int main(int argc, char *argv[])
 {
@@ -73,7 +82,15 @@ int main(int argc, char *argv[])
     ifs.tv_sec = (long)ifs_d;
     ifs.tv_nsec = (long)((ifs_d - ifs.tv_sec)*1e9);
     
+    main_thread = pthread_self();
+    
     sscanf(argv[3], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
+    
+    status = pthread_create(&timer, NULL, timer_thread, NULL);
+    if(status) {
+        perror("Failed to create timer thread");
+        exit(EXIT_FAILURE);
+    }
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
@@ -89,10 +106,19 @@ int main(int argc, char *argv[])
     sigemptyset(&sa.sa_mask);
     status = sigaction(SIGTERM, &sa, NULL);
     if(status < 0) {
-        perror("Error installing handler for SIGUSR1");
+        perror("Error installing handler for SIGTERM");
         exit(EXIT_FAILURE);
     }
     
+    sa.sa_handler = sigALARM;
+    sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
+    status = sigaction(SIGALRM, &sa, NULL);
+    if(status < 0) {
+        perror("Error installing handler for SIGALRM");
+        exit(EXIT_FAILURE);
+    }
+
     shm_medium = shmget(SHM_KEY, sizeof(char), IPC_R);
     if(shm_medium < 0) {
         perror("Failed to locate shared memory segment.");
@@ -143,7 +169,8 @@ int main(int argc, char *argv[])
 }
 
 void parse_send(void)
-{    
+{
+    int status;
     send_s *s = alloc(sizeof(*s));
     
     read(tasks[0], &s->dlen, sizeof(s->dlen));
@@ -164,7 +191,11 @@ void parse_send(void)
     
     read(tasks[0], &s->repeat, sizeof(s->repeat));
     
-    pthread_create(&s->thread, NULL, send_thread, s);
+    status = pthread_create(&s->thread, NULL, send_thread, s);
+    if(status) {
+        perror("Failed to create thread for sending.");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void *send_thread(void *arg)
@@ -209,11 +240,13 @@ not_idle:
     
     sendRTS(s);
     
+    pthread_kill(timer, SIGALRM);
+   // while(read(medium, <#void *#>, <#size_t#>))
 }
 
 void sendRTS(send_s *s)
 {
-    frame_s frame = {0};
+    rts_s frame;
     size_t size = RTS_SIZE + CTS_ACK_SIZE + s->size;
     char *fptr = (char *)&frame;
     
@@ -231,7 +264,36 @@ void sendRTS(send_s *s)
         sched_yield(); /* make this even "more" of a race condition */
     }
     logevent("%s sent RTS", name_stripped);
+}
+
+void *timer_thread(void *arg)
+{
+    struct timespec ts;
+    struct timeval tp;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    double tmp;
     
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&cond, NULL);
+
+    
+    pthread_mutex_lock(&lock);
+    
+    while(true) {
+        pause();
+        timed_out = 0;
+        
+        gettimeofday(&tp, NULL);
+        
+        tmp = TIMER_TIME + tp.tv_sec + tp.tv_usec/1e6;
+        ts.tv_sec = (long)tmp;
+        ts.tv_nsec = (long)((tmp - ts.tv_sec)*1e9);
+
+        pthread_cond_timedwait(&cond, &lock, &ts);
+        
+        pthread_kill(main_thread, SIGALRM);
+    }
 }
 
 void logevent(char *fs, ...)
@@ -239,7 +301,7 @@ void logevent(char *fs, ...)
     va_list args;
     time_t t;
     struct tm tm_time;
-    char timestamp[16] = {0};
+    char timestamp[16];
     
     time(&t);
     localtime_r(&t, &tm_time);
@@ -262,5 +324,11 @@ void sigUSR1(int sig)
 void sigTERM(int sig)
 {
     exit(EXIT_SUCCESS);
+}
+
+void sigALARM(int sig)
+{
+    timed_out = 1;
+    puts("Got sig alarm");
 }
 

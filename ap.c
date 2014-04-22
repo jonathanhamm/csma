@@ -274,9 +274,12 @@ void *process_request(void *arg)
 {
     int nread = 0;
     ssize_t status;
-    frame_s frame;
+    union {
+        rts_s rts;
+        cts_ack_s *ctack;
+    }data;
     uint32_t checksum;
-    char *fptr = (char *)&frame;
+    char *fptr = (char *)&data;
     
     while(true) {
         status = read(pipe_fd[0], fptr, sizeof(char));
@@ -284,24 +287,24 @@ void *process_request(void *arg)
             nread++;
             fptr++;
             if(nread == sizeof(uint16_t)) {
-                if(frame.FC & RTS_SUBTYPE) {
-                    while(nread < sizeof(frame)) {
+                if(data.rts.FC & RTS_SUBTYPE) {
+                    while(nread < sizeof(data.rts)) {
                         if(read(pipe_fd[0], fptr, sizeof(char)) != EAGAIN) {
                             fptr++;
                             nread++;
                         }
                     }
-                    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
-                    if(checksum == frame.FCS) {
+                    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
+                    if(checksum == data.rts.FCS) {
                         *medium_status = 1;
                         
                     }
                 }
             }
         }
-        if(nread == sizeof(frame)) {
+        if(nread == sizeof(data)) {
             nread = 0;
-            fptr = (char *)&frame;
+            fptr = (char *)&data;
         }
             
     }
