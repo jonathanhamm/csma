@@ -4,9 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define BPS 1e9
+#define BPS 10000000
 #define SHM_KEY 0xDEADBEAF
 #define CRC_POLYNOMIAL 0x11EDC6F41
+
+#define RTS_SIZE 20
+#define CTS_ACK_SIZE 14
 
 typedef enum funcs_e funcs_e;
 typedef struct frame_s frame_s;

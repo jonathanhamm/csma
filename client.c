@@ -215,9 +215,11 @@ void sendRTS(send_s *s)
 {
 #define RTS_SUBTYPE 0x0b00;
     frame_s frame = {0};
+    size_t size = RTS_SIZE + CTS_ACK_SIZE + s->size;
     char *fptr = (char *)&frame;
     
     frame.FC = RTS_SUBTYPE;
+    frame.D = (size * 1000000) / BPS + !!((size * 1000000) % BPS);
     
     memcpy(frame.addr1, name, name_len);
     memcpy(frame.addr1, s->dst, s->dlen);

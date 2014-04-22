@@ -186,6 +186,7 @@ void create_node(char *id, char *ifs)
     int fd[2];
     station_s *station;
     
+    pthread_mutex_lock(&station_table_lock);
     if(!sym_lookup(&station_table, id)) {
         status = pipe(fd);
         if(status < 0) {
@@ -209,9 +210,7 @@ void create_node(char *id, char *ifs)
             station->pipe[0] = fd[0];
             station->pipe[1] = fd[1];
             
-            pthread_mutex_lock(&station_table_lock);
             sym_insert(&station_table, id, (sym_data_u){.ptr = station});
-            pthread_mutex_unlock(&station_table_lock);
         }
         else if(pid < 0) {
             perror("Failed to create station process.");
@@ -221,6 +220,7 @@ void create_node(char *id, char *ifs)
             status = execv(CLIENT_PATH, argv);
         }
     }
+    pthread_mutex_unlock(&station_table_lock);
 }
 
 void send_message(send_s *send)
@@ -229,6 +229,7 @@ void send_message(send_s *send)
     station_s *station;
     size_t dlen, plen;
     
+    pthread_mutex_lock(&station_table_lock);
     rec = sym_lookup(&station_table, send->src);
     if(rec) {
         dlen = strlen(send->dst);
@@ -245,6 +246,7 @@ void send_message(send_s *send)
         write(station->pipe[1], &send->repeat, sizeof(send->repeat));
         kill(station->pid, SIGUSR1);
     }
+    pthread_mutex_unlock(&station_table_lock);
 }
 
 void kill_child(station_s *s)
@@ -260,7 +262,6 @@ void kill_childid(char *id)
     
     pthread_mutex_lock(&station_table_lock);
     rec = sym_lookup(&station_table, id);
-    
     if(rec) {
         kill_child(rec->data.ptr);
         sym_delete(&station_table, id);
