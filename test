@@ -38,16 +38,16 @@ message1 = "hello world"
 message2 = "goodbye world"
 message4 = 3.14159
 
-a.send("b", message1)
+#a.send("b", message1)
 
 #############################################
 #   Node Commands:
 #############################################
 
 #broadcast
-a.send("b", "hello son")
+#a.send("b", "hello son")
 
-a.send("hello world")
+#a.send("hello world")
 
 #a.send("hello world")
 
@@ -55,7 +55,7 @@ a.send("hello world")
 
 #a.send("hello world")
 
-a.send("hello world")
+#a.send("hello world")
 
 print("hey")
 

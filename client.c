@@ -58,8 +58,10 @@ static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
+static void send_frame(send_s *s);
 static void *timer_thread(void *);
 static void logevent(char *, ...);
+static void slowwrite(char *data, size_t size);
 
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
@@ -97,8 +99,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    dup2(fileno(out), STDOUT_FILENO);
-    dup2(fileno(out), STDERR_FILENO);
+    //dup2(fileno(out), STDOUT_FILENO);
+    //dup2(fileno(out), STDERR_FILENO);
     
     logf = stdout;
     
@@ -289,7 +291,6 @@ void sendRTS(send_s *s)
 {
     rts_s frame;
     size_t size = RTS_SIZE + CTS_ACK_SIZE + s->size;
-    char *fptr = (char *)&frame;
     
     frame.FC = RTS_SUBTYPE;
     frame.D = (size * 1000000) / BPS + !!((size * 1000000) % BPS);
@@ -299,13 +300,37 @@ void sendRTS(send_s *s)
     
     frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
     
-    while(fptr - (char *)&frame < sizeof(frame)) {
-        write(medium[1], fptr, 1);
-        fptr++;
-        sched_yield(); /* make this even "more" of a race condition */
-    }
+    slowwrite((char *)&frame, sizeof(frame));
     logevent("%s sent RTS", name_stripped);
 }
+
+void send_frame(send_s *s)
+{
+    uint32_t checksum;
+    size_t total = sizeof(s->size) + s->size + sizeof(checksum);
+    char *buf = alloc(total);
+    
+    sprintf(buf, "%ld", s->size);
+    memcpy(&buf[sizeof(s->size)], s->payload, s->size);
+
+    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)buf, (uInt)(sizeof(s->size) + s->size));
+    sprintf(&buf[sizeof(s->size) + s->size], (char *)&checksum, sizeof(checksum));
+    
+    slowwrite(buf, total);
+    
+    free(buf);
+}
+
+void slowwrite(char *data, size_t size)
+{
+    size_t i;
+    
+    for(i = 0; i < size; i++) {
+        write(medium[1], data, sizeof(char));
+        sched_yield();
+    }
+}
+
 
 void *timer_thread(void *arg)
 {
@@ -355,7 +380,9 @@ void logevent(char *fs, ...)
     vfprintf(logf, fs, args);
     va_end(args);
 
-    putchar('\n');
+    fputc('\n', logf);
+    
+    fflush(logf);
 }
 
 void sigUSR1(int sig)

@@ -18,6 +18,7 @@
 typedef enum funcs_e funcs_e;
 typedef struct rts_s rts_s;
 typedef struct cts_ack_s cts_ack_s;
+typedef struct frame_s frame_s;
 
 enum funcs_e {
     FNET_SEND,
@@ -43,6 +44,13 @@ struct cts_ack_s
     uint16_t D;
     char addr1[6];
     uint32_t FCS;
+};
+
+struct frame_s
+{
+    size_t size;
+    uint32_t FCS;
+    char payload[];
 };
 
 extern bool addr_cmp(char *addr1, char *addr2);

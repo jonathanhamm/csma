@@ -277,8 +277,9 @@ void *process_request(void *arg)
     ssize_t status;
     union {
         rts_s rts;
-        cts_ack_s *ctack;
+        cts_ack_s ctack;
     }data;
+    struct timespec tval;
     uint32_t checksum;
     char *fptr = (char *)&data;
     
@@ -295,6 +296,7 @@ void *process_request(void *arg)
                             nread++;
                         }
                     }
+                    printf("Validating Checksum %6s\n", data.rts.addr1);
                     checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
                     if(checksum == data.rts.FCS) {
                         *medium_status = 1;
