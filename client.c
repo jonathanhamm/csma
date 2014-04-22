@@ -9,14 +9,18 @@
 #include <zlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 #include "shared.h"
+
+#define REDIRECT_OUTPUT
 
 
 #define TIMER_TIME 1.5
@@ -48,6 +52,8 @@ static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
 static volatile sig_atomic_t timed_out;
 
+static FILE *out;
+
 static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
@@ -66,14 +72,36 @@ int main(int argc, char *argv[])
     ssize_t rstatus;
     double ifs_d;
     struct sigaction sa;
-    
-    logf = stdout;
+    char outfile[16] = "out/";
     
     if(argc != 4) {
-        fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
+        fprintf(stderr, "Client expects 3 parameters. Only received %d.\n", argc);
         exit(EXIT_FAILURE);
     }
 
+    name = argv[1];
+    name_len = strlen(name);
+    
+    name_stripped = alloc(name_len - 2);
+    strncpy(name_stripped, &name[1], name_len-2);
+    
+    if(access("out/", F_OK)) {
+        if(errno == ENOENT)
+            mkdir("out", S_IRWXU);
+    }
+    
+    strcpy(&outfile[4], name_stripped);
+    out = fopen(outfile, "a+");
+    if(!out) {
+        perror("Error Creating file for redirection");
+        exit(EXIT_FAILURE);
+    }
+    
+    dup2(fileno(out), STDOUT_FILENO);
+    dup2(fileno(out), STDERR_FILENO);
+    
+    logf = stdout;
+    
     /* seed random number generator */
     srand((int)time(NULL));
     
@@ -131,12 +159,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    name = argv[1];
-    name_len = strlen(name);
-    
-    name_stripped = alloc(name_len - 2);
-    strncpy(name_stripped, &name[1], name_len-2);
-    
     printf("Successfully Started Station: %s\n", name);
     
     kill(getppid(), SIGUSR1);
@@ -165,6 +187,7 @@ int main(int argc, char *argv[])
         }
     }
     free(name_stripped);
+    fclose(out);
     exit(EXIT_SUCCESS);
 }
 
@@ -223,6 +246,9 @@ void *send_thread(void *arg)
 
 void doCSMACA(send_s *s)
 {
+    ssize_t status;
+    uint32_t checksum;
+    cts_ack_s ack;
     int K = 0, R;
     
 not_idle:
@@ -241,7 +267,22 @@ not_idle:
     sendRTS(s);
     
     pthread_kill(timer, SIGALRM);
-   // while(read(medium, <#void *#>, <#size_t#>))
+    
+    while(true) {
+        status = read(medium[0], &ack, sizeof(ack));
+        if(timed_out) {
+            goto not_idle;
+        }
+        if(ack.FC == ACK_SUBTYPE) {
+            printf("comparing %s %6s", name_stripped, ack.addr1);
+            if(addr_cmp(name_stripped, ack.addr1)) {
+                checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
+                if(checksum == ack.FCS) {
+                    puts("GOT ACK :D");
+                }
+            }
+        }
+    }
 }
 
 void sendRTS(send_s *s)
@@ -294,6 +335,7 @@ void *timer_thread(void *arg)
         
         pthread_kill(main_thread, SIGALRM);
     }
+
 }
 
 void logevent(char *fs, ...)
@@ -329,6 +371,5 @@ void sigTERM(int sig)
 void sigALARM(int sig)
 {
     timed_out = 1;
-    puts("Got sig alarm");
 }
 
