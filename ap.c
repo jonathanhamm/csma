@@ -6,6 +6,7 @@
 #include <math.h>
 #include <assert.h>
 #include <stdint.h>
+#include <errno.h>
 
 #include <zlib.h>
 #include <termios.h>
@@ -104,7 +105,7 @@ int main(int argc, char *argv[])
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
-    *medium_status = '\0';
+    *medium_status = 0;
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -271,9 +272,38 @@ void kill_childid(char *id)
 
 void *process_request(void *arg)
 {
+    int nread = 0;
+    ssize_t status;
+    frame_s frame;
+    uint32_t checksum;
+    char *fptr = (char *)&frame;
+    
     while(true) {
-        sleep(1);
-        *medium_status = rand()%2;
+        status = read(pipe_fd[0], fptr, sizeof(char));
+        if(status != EAGAIN) {
+            nread++;
+            fptr++;
+            if(nread == sizeof(uint16_t)) {
+                if(frame.FC & RTS_SUBTYPE) {
+                    while(nread < sizeof(frame)) {
+                        if(read(pipe_fd[0], fptr, sizeof(char)) != EAGAIN) {
+                            fptr++;
+                            nread++;
+                        }
+                    }
+                    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
+                    if(checksum == frame.FCS) {
+                        *medium_status = 1;
+                        
+                    }
+                }
+            }
+        }
+        if(nread == sizeof(frame)) {
+            nread = 0;
+            fptr = (char *)&frame;
+        }
+            
     }
 }
 

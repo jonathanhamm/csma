@@ -10,6 +10,7 @@
 
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
+#define RTS_SUBTYPE 0x0b00
 
 typedef enum funcs_e funcs_e;
 typedef struct frame_s frame_s;

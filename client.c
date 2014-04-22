@@ -213,7 +213,6 @@ not_idle:
 
 void sendRTS(send_s *s)
 {
-#define RTS_SUBTYPE 0x0b00;
     frame_s frame = {0};
     size_t size = RTS_SIZE + CTS_ACK_SIZE + s->size;
     char *fptr = (char *)&frame;
@@ -222,7 +221,7 @@ void sendRTS(send_s *s)
     frame.D = (size * 1000000) / BPS + !!((size * 1000000) % BPS);
     
     memcpy(frame.addr1, name, name_len);
-    memcpy(frame.addr1, s->dst, s->dlen);
+    memcpy(frame.addr1, &s->dst[1], s->dlen-2);
     
     frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
     
@@ -232,6 +231,7 @@ void sendRTS(send_s *s)
         sched_yield(); /* make this even "more" of a race condition */
     }
     logevent("%s sent RTS", name_stripped);
+    
 }
 
 void logevent(char *fs, ...)
