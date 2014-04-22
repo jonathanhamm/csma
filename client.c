@@ -52,6 +52,8 @@ static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
 static volatile sig_atomic_t timed_out;
 
+static bool timeout;
+
 static FILE *out;
 
 static void parse_send(void);
@@ -60,12 +62,12 @@ static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
 static void send_frame(send_s *s);
 static void *timer_thread(void *);
+static void start_timer(void);
 static void logevent(char *, ...);
 static void slowwrite(char *data, size_t size);
 
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
-static void sigALARM(int sig);
 
 int main(int argc, char *argv[])
 {
@@ -116,12 +118,6 @@ int main(int argc, char *argv[])
     
     sscanf(argv[3], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
     
-    status = pthread_create(&timer, NULL, timer_thread, NULL);
-    if(status) {
-        perror("Failed to create timer thread");
-        exit(EXIT_FAILURE);
-    }
-    
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
@@ -140,15 +136,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    sa.sa_handler = sigALARM;
-    sa.sa_flags = SA_RESTART;
-    sigemptyset(&sa.sa_mask);
-    status = sigaction(SIGALRM, &sa, NULL);
-    if(status < 0) {
-        perror("Error installing handler for SIGALRM");
-        exit(EXIT_FAILURE);
-    }
-
     shm_medium = shmget(SHM_KEY, sizeof(char), IPC_R);
     if(shm_medium < 0) {
         perror("Failed to locate shared memory segment.");
@@ -268,19 +255,29 @@ not_idle:
     
     sendRTS(s);
     
-    pthread_kill(timer, SIGALRM);
+    start_timer();
     
     while(true) {
+        logevent("Reading");
         status = read(medium[0], &ack, sizeof(ack));
+        logevent("Done Reading");
+
         if(timed_out) {
+            K++;
+            puts("Timed out");
+            timed_out = false;
+            pthread_join(timer, NULL);
             goto not_idle;
         }
         if(ack.FC == ACK_SUBTYPE) {
+            puts("Got Ack");
+            timed_out = -1;
             printf("comparing %s %6s", name_stripped, ack.addr1);
             if(addr_cmp(name_stripped, ack.addr1)) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
                 if(checksum == ack.FCS) {
                     puts("GOT ACK :D");
+                    send_frame(s);
                 }
             }
         }
@@ -308,7 +305,7 @@ void send_frame(send_s *s)
 {
     uint32_t checksum;
     size_t total = sizeof(s->size) + s->size + sizeof(checksum);
-    char *buf = alloc(total);
+    char buf[total];
     
     sprintf(buf, "%ld", s->size);
     memcpy(&buf[sizeof(s->size)], s->payload, s->size);
@@ -317,10 +314,9 @@ void send_frame(send_s *s)
     sprintf(&buf[sizeof(s->size) + s->size], (char *)&checksum, sizeof(checksum));
     
     slowwrite(buf, total);
-    
-    free(buf);
 }
 
+/* Make writes even "more" of a race condition */
 void slowwrite(char *data, size_t size)
 {
     size_t i;
@@ -330,7 +326,6 @@ void slowwrite(char *data, size_t size)
         sched_yield();
     }
 }
-
 
 void *timer_thread(void *arg)
 {
@@ -342,33 +337,49 @@ void *timer_thread(void *arg)
     
     pthread_mutex_init(&lock, NULL);
     pthread_cond_init(&cond, NULL);
-
     
+    timed_out = false;
+    
+    gettimeofday(&tp, NULL);
+    
+    tmp = TIMER_TIME + tp.tv_sec + tp.tv_usec/1e6;
+    ts.tv_sec = (long)tmp;
+    ts.tv_nsec = (long)((tmp - ts.tv_sec)*1e9);
+
     pthread_mutex_lock(&lock);
+    pthread_cond_timedwait(&cond, &lock, &ts);
+    pthread_mutex_unlock(&lock);
     
-    while(true) {
-        pause();
-        timed_out = 0;
-        
-        gettimeofday(&tp, NULL);
-        
-        tmp = TIMER_TIME + tp.tv_sec + tp.tv_usec/1e6;
-        ts.tv_sec = (long)tmp;
-        ts.tv_nsec = (long)((tmp - ts.tv_sec)*1e9);
+    timeout = true;
+    
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&cond);
+    
+    pthread_exit(NULL);
+}
 
-        pthread_cond_timedwait(&cond, &lock, &ts);
-        
-        pthread_kill(main_thread, SIGALRM);
+void start_timer(void)
+{
+    int status = pthread_create(&timer, NULL, timer_thread, NULL);
+    if(status) {
+        perror("Failed to create timer thread");
+        exit(EXIT_FAILURE);
     }
-
+    while(timed_out)puts("timed out");
 }
 
 void logevent(char *fs, ...)
 {
     va_list args;
+    size_t i, diff;
     time_t t;
     struct tm tm_time;
     char timestamp[16];
+    
+    printf("%6s", name_stripped);
+    diff = 6 - (name_len - 2);
+    for(i = 0; i < diff; i++)
+        putchar('.');
     
     time(&t);
     localtime_r(&t, &tm_time);
@@ -393,10 +404,5 @@ void sigUSR1(int sig)
 void sigTERM(int sig)
 {
     exit(EXIT_SUCCESS);
-}
-
-void sigALARM(int sig)
-{
-    timed_out = 1;
 }
 
