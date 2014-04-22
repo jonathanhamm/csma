@@ -11,6 +11,8 @@
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
 #define RTS_SUBTYPE 0x0b00
+#define CTS_SUBTYPE 0x0c00;
+#define ACK_SUBTYPE 0x0d00;
 
 typedef enum funcs_e funcs_e;
 typedef struct rts_s rts_s;
@@ -29,8 +31,8 @@ struct rts_s
 {
     uint16_t FC;
     uint16_t D;
-    uint8_t addr1[6];
-    uint8_t addr2[6];
+    char addr1[6];
+    char addr2[6];
     uint32_t FCS;
 };
 
@@ -38,7 +40,7 @@ struct cts_ack_s
 {
     uint16_t FC;
     uint16_t D;
-    uint8_t addr1[6];
+    char addr1[6];
     uint32_t FCS;
 };
 

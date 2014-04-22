@@ -36,7 +36,7 @@ pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int shm_medium;
 static char *medium_status;
-static int pipe_fd[2];
+static int medium[2];
 
 static void process_tasks(void);
 static void create_node(char *id, char *ifs);
@@ -44,6 +44,7 @@ static void send_message(send_s *send);
 static void *process_request(void *);
 static void kill_child(station_s *s);
 static void kill_childid(char *id);
+static void send_ack(char *addr1);
 
 static void sigUSR1(int sig);
 static void sigUSR2(int sig);
@@ -88,7 +89,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    status = pipe(pipe_fd);
+    status = pipe(medium);
     if(status < 0) {
         perror("Error Creating Pipe");
         exit(EXIT_FAILURE);
@@ -194,7 +195,7 @@ void create_node(char *id, char *ifs)
             perror("Error Creating Pipe");
             exit(EXIT_FAILURE);
         }
-        sprintf(fd_buf, "%d.%d.%d.%d", pipe_fd[0], pipe_fd[1], fd[0], fd[1]);
+        sprintf(fd_buf, "%d.%d.%d.%d", medium[0], medium[1], fd[0], fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
         argv[2] = ifs;
@@ -282,14 +283,14 @@ void *process_request(void *arg)
     char *fptr = (char *)&data;
     
     while(true) {
-        status = read(pipe_fd[0], fptr, sizeof(char));
+        status = read(medium[0], fptr, sizeof(char));
         if(status != EAGAIN) {
             nread++;
             fptr++;
             if(nread == sizeof(uint16_t)) {
                 if(data.rts.FC & RTS_SUBTYPE) {
                     while(nread < sizeof(data.rts)) {
-                        if(read(pipe_fd[0], fptr, sizeof(char)) != EAGAIN) {
+                        if(read(medium[0], fptr, sizeof(char)) != EAGAIN) {
                             fptr++;
                             nread++;
                         }
@@ -297,7 +298,7 @@ void *process_request(void *arg)
                     checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
                     if(checksum == data.rts.FCS) {
                         *medium_status = 1;
-                        
+                        send_ack(data.rts.addr1);
                     }
                 }
             }
@@ -308,6 +309,17 @@ void *process_request(void *arg)
         }
             
     }
+}
+
+void send_ack(char *addr1)
+{
+    cts_ack_s ack;
+    
+    ack.FC = ACK_SUBTYPE;
+    ack.D = 1;
+    memcpy(ack.addr1, addr1, sizeof(ack.addr1));
+    ack.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
+    write(medium[1], &ack, sizeof(ack));
 }
 
 void sigUSR1(int sig)
