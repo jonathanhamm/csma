@@ -376,10 +376,10 @@ void logevent(char *fs, ...)
     struct tm tm_time;
     char timestamp[16];
     
-    printf("%6s", name_stripped);
+    fprintf(logf, "%6s", name_stripped);
     diff = 6 - (name_len - 2);
     for(i = 0; i < diff; i++)
-        putchar('.');
+        fputc('.', logf);
     
     time(&t);
     localtime_r(&t, &tm_time);
