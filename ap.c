@@ -17,7 +17,7 @@
 #include <sys/shm.h>
 
 #include "parse.h"
-#include "network.h"
+#include "ap.h"
 #include "shared.h"
 
 #define CLIENT_PATH "./client"

@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
-#include "network.h"
 
 #include "shared.h"
 

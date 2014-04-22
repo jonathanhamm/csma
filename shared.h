@@ -4,7 +4,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define SHM_KEY 8945
+#define BPS 1e9
+#define SHM_KEY 0xDEADBEAF
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
 typedef enum funcs_e funcs_e;

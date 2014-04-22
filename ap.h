@@ -1,5 +1,5 @@
-#ifndef NETWORK_H_
-#define NETWORK_H_
+#ifndef AP_H_
+#define AP_H_
 
 #include <stdlib.h>
 

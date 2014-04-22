@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <math.h>
+#include <time.h>
+#include <stdarg.h>
 #include <errno.h>
 
 #include <zlib.h>
@@ -33,11 +34,12 @@ struct send_s
 
 static int medium[2];
 static int tasks[2];
-static char *name;
+static char *name, *name_stripped;
 static size_t name_len;
 static int shm_medium;
 static char *medium_busy;
 static struct timespec ifs;
+static FILE *logf;
 
 static volatile sig_atomic_t pipe_full;
 static void sigUSR1(int sig);
@@ -46,6 +48,7 @@ static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
+static void logevent(char *, ...);
 
 int main(int argc, char *argv[])
 {
@@ -54,6 +57,8 @@ int main(int argc, char *argv[])
     ssize_t rstatus;
     double ifs_d;
     struct sigaction sa;
+    
+    logf = stdout;
     
     if(argc != 4) {
         fprintf(stderr, "Client expects 3 parameters. Only receive %d.\n", argc);
@@ -102,6 +107,10 @@ int main(int argc, char *argv[])
     
     name = argv[1];
     name_len = strlen(name);
+    
+    name_stripped = alloc(name_len - 2);
+    strncpy(name_stripped, &name[1], name_len-2);
+    
     printf("Successfully Started Station: %s\n", name);
     
     kill(getppid(), SIGUSR1);
@@ -129,7 +138,8 @@ int main(int argc, char *argv[])
             pause();
         }
     }
-    return 0;
+    free(name_stripped);
+    exit(EXIT_SUCCESS);
 }
 
 void parse_send(void)
@@ -212,15 +222,34 @@ void sendRTS(send_s *s)
     memcpy(frame.addr1, name, name_len);
     memcpy(frame.addr1, s->dst, s->dlen);
     
-    
     frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
     
     while(fptr - (char *)&frame < sizeof(frame)) {
         write(medium[1], fptr, 1);
         fptr++;
-        sched_yield();
+        sched_yield(); /* make this even "more" of a race condition */
     }
+    logevent("%s sent RTS", name_stripped);
+}
 
+void logevent(char *fs, ...)
+{
+    va_list args;
+    time_t t;
+    struct tm tm_time;
+    char timestamp[16] = {0};
+    
+    time(&t);
+    localtime_r(&t, &tm_time);
+    strftime(timestamp, 16, "%T:\t", &tm_time);
+    
+    fprintf(logf, "%s", timestamp);
+    
+    va_start(args, fs);
+    vfprintf(logf, fs, args);
+    va_end(args);
+
+    putchar('\n');
 }
 
 void sigUSR1(int sig)
