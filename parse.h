@@ -183,6 +183,7 @@ extern void sym_delete(sym_table_s *table, char *key);
 
 extern void task_enqueue(task_s *t);
 extern task_s *task_dequeue(void);
+extern bool is_allocated(const void *ptr);
 
 extern object_s net_send(void *);
 extern object_s net_node(void *);

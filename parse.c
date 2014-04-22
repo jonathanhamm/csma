@@ -130,8 +130,6 @@ static void clear_scope(scope_s *root);
 static void free_accesslist(access_list_s *l);
 static void free_tokens(void);
 
-bool is_allocated(const void *ptr);
-
 bool parse(char *src)
 {
     parse_success = true;
@@ -1841,7 +1839,6 @@ void sym_delete(sym_table_s *table, char *key)
     sym_record_s *rec = table->table[index];
 
     if(rec) {
-        last = rec;
         while(rec) {
             if(!strcmp(rec->key, key)) {
                 if(last)

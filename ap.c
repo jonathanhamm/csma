@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
     }
     buf_free(in);
     
+    pthread_mutex_lock(&station_table_lock);
     /* kill all children */
     for(c = 0; c < SYM_TABLE_SIZE; c++) {
         rec = station_table.table[c];
@@ -148,6 +149,9 @@ int main(int argc, char *argv[])
             rec = recb;
         }
     }
+    pthread_mutex_unlock(&station_table_lock);
+
+    pthread_mutex_destroy(&station_table_lock);
     
     exit(EXIT_SUCCESS);
 }
@@ -254,9 +258,14 @@ void kill_childid(char *id)
 {
     sym_record_s *rec;
     
+    pthread_mutex_lock(&station_table_lock);
     rec = sym_lookup(&station_table, id);
-    if(rec)
+    
+    if(rec) {
         kill_child(rec->data.ptr);
+        sym_delete(&station_table, id);
+    }
+    pthread_mutex_unlock(&station_table_lock);
 }
 
 void *process_request(void *arg)
