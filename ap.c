@@ -34,7 +34,8 @@ struct station_s
 sym_table_s station_table;
 pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static int shm_medium;
+static int shm_mediums;
+static int shm_mediumc;
 
 static void process_tasks(void);
 static void create_node(char *id, char *ifs);
@@ -100,19 +101,33 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_medium = shmget(SHM_KEY, sizeof(*medium), IPC_CREAT|IPC_R|IPC_W);
-    if(shm_medium < 0) {
+    shm_mediums = shmget(SHM_KEY_S, sizeof(*mediums), IPC_CREAT|IPC_R|IPC_W);
+    if(shm_mediums < 0) {
         perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);
     }
     
-    medium = shmat(shm_medium, NULL, 0);
-    if(medium == (medium_s *)-1) {
+    mediums = shmat(shm_mediums, NULL, 0);
+    if(mediums == (medium_s *)-1) {
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
-    medium->isbusy = false;
-    pthread_mutex_init(&medium->lock, NULL);
+    mediums->isbusy = false;
+    pthread_mutex_init(&mediums->lock, NULL);
+    
+    shm_mediumc = shmget(SHM_KEY_C, sizeof(*mediumc), IPC_CREAT|IPC_R|IPC_W);
+    if(shm_mediumc < 0) {
+        perror("Failed to set up shared memory segment");
+        exit(EXIT_FAILURE);
+    }
+    
+    mediumc = shmat(shm_mediumc, NULL, 0);
+    if(mediumc == (medium_s *)-1) {
+        perror("Failed to attached shared memory segment.");
+        exit(EXIT_FAILURE);
+    }
+    mediumc->isbusy = false;
+    pthread_mutex_init(&mediumc->lock, NULL);
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -287,24 +302,28 @@ void *process_request(void *arg)
     uint32_t checksum;
     
     while(true) {
-        status = slowread(&data, sizeof(data));
+        status = slowread(mediums, &data, sizeof(data));
         if(status == EINTR) {
-            medium->isbusy = false;
+            set_busy(mediums, false);
             logevent("Timed out session");
         }
         else {
             if(data.rts.FC & RTS_SUBTYPE) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
                 if(checksum == data.rts.FCS) {
-                    medium->isbusy = true;
+                    set_busy(mediums, true);
                     send_ack(data.rts.addr1);
                 }
                 else {
-                    logevent("Checksum Validation Failed");
+                  //  logevent("Checksum Validation Failed");
+                    set_busy(mediums, false);
                 }
             }
+            else {
+                set_busy(mediums, false);
+               // logevent("Invalid data %.6s", data.rts.addr1);
+            }
         }
-        
     }
 }
 
@@ -316,7 +335,7 @@ void send_ack(char *addr1)
     ack.D = 1;
     memcpy(ack.addr1, addr1, sizeof(ack.addr1));
     ack.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
-    slowwrite(&ack, sizeof(ack));
+    slowwrite(mediumc, &ack, sizeof(ack));
     logevent("Got Valid RTS and Sent ACK");
 }
 

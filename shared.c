@@ -1,6 +1,7 @@
 #include "shared.h"
 #include <stdarg.h>
 #include <errno.h>
+#include <assert.h>
 #include <time.h>
 
 #include <unistd.h>
@@ -11,7 +12,8 @@ FILE *logfile;
 char *name;
 char *name_stripped;
 size_t name_len;
-medium_s *medium;
+medium_s *mediums;
+medium_s *mediumc;
 pthread_t timer_thread;
 
 static volatile sig_atomic_t timed_out;
@@ -76,49 +78,39 @@ void start_timer(double time)
     }
 }
 
-size_t write_shm(char *data, size_t size)
+size_t write_shm(medium_s *medium, char *data, size_t size)
 {
     long i;
+
+    for(i = medium->size; i < size+medium->size; i++)
+        medium->buf[i % MEDIUM_SIZE] = *data++;
     
-    pthread_mutex_lock(&medium->lock);
-    medium->size = 0;
-    for(i = 0; i < size; i++) {
-        if(timed_out) {
-            i = EINTR;
-            goto ret;
-        }
-        medium->buf[i % MEDIUM_SIZE] = data[i];
-        medium->size++;
-    }
-ret:
-    pthread_mutex_unlock(&medium->lock);
-    return i;
+    return 0;
 }
 
-size_t read_shm(char *data, size_t size)
+size_t read_shm(medium_s *medium, char *data, size_t start, size_t size)
 {
     long i;
     
-    pthread_mutex_lock(&medium->lock);
-    for(i = 0; i < size; i++) {
-        if(timed_out) {
-            goto ret;
+    for(i = start; i < start + size; i++) {
+        if(timed_out)
             return EINTR;
-        }
-        data[i] = medium->buf[i % MEDIUM_SIZE];
-        
         if(i >= medium->size) {
-            pthread_mutex_unlock(&medium->lock);
             while(i >= medium->size) {
                 if(timed_out)
                     return EINTR;
             }
-            pthread_mutex_lock(&medium->lock);
         }
+        *data++ = medium->buf[i % MEDIUM_SIZE];
     }
-ret:
+    return 0;
+}
+
+void set_busy(medium_s *medium, bool isbusy)
+{
+    pthread_mutex_lock(&medium->lock);
+    medium->isbusy = isbusy;
     pthread_mutex_unlock(&medium->lock);
-    return i;
 }
 
 void sigALARM(int sig)
@@ -161,30 +153,39 @@ void logevent(char *fs, ...)
 }
 
 /* Make reads even "more" of a race condition */
-ssize_t slowread(void *buf, size_t size)
+ssize_t slowread(medium_s *medium, void *buf, size_t size)
 {
     size_t i;
     ssize_t status;
     
     start_timer(WAIT_TIME);
     for(i = 0; i < size; i++) {
-        status = slowread(buf, size);
+        status = read_shm(medium, buf+i, i, sizeof(char));
         if(status == EINTR) {
-            pthread_join(timer_thread, NULL);
+            pthread_cancel(timer_thread);
             return EINTR;
         }
         sched_yield();
     }
-    return status;
+    pthread_cancel(timer_thread);
+    return 0;
 }
 
 /* Make writes even "more" of a race condition */
-void slowwrite(void *buf, size_t size)
+void slowwrite(medium_s *medium, void *buf, size_t size)
 {
     size_t i;
     
+    pthread_mutex_lock(&medium->lock);
+    medium->size = 0;
+    pthread_mutex_unlock(&medium->lock);
+
     for(i = 0; i < size; i++) {
-        write_shm(buf+i, sizeof(char));
+        pthread_mutex_lock(&medium->lock);
+
+        write_shm(medium, buf+i, sizeof(char));
+        medium->size++;
+        pthread_mutex_unlock(&medium->lock);
         sched_yield();
     }
 }

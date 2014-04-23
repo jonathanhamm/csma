@@ -39,7 +39,8 @@ struct send_s
 };
 
 static int tasks[2];
-static int shm_medium;
+static int shm_mediums;
+static int shm_mediumc;
 static struct timespec ifs;
 static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
@@ -135,14 +136,26 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_R);
-    if(shm_medium < 0) {
+    shm_mediums = shmget(SHM_KEY_S, sizeof(char), IPC_R);
+    if(shm_mediums < 0) {
         perror("Failed to locate shared memory segment.");
         exit(EXIT_FAILURE);
     }
     
-    medium = shmat(shm_medium, NULL, 0);
-    if(medium == (medium_s *)-1) {
+    mediums = shmat(shm_mediums, NULL, 0);
+    if(mediums == (medium_s *)-1) {
+        perror("Failed to attached shared memory segment.");
+        exit(EXIT_FAILURE);
+    }
+    
+    shm_mediumc = shmget(SHM_KEY_C, sizeof(char), IPC_R);
+    if(shm_mediumc < 0) {
+        perror("Failed to locate shared memory segment.");
+        exit(EXIT_FAILURE);
+    }
+    
+    mediumc = shmat(shm_mediumc, NULL, 0);
+    if(mediumc == (medium_s *)-1) {
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
@@ -242,13 +255,13 @@ void doCSMACA(send_s *s)
     
 not_idle:
     /* wait until idle and waste tons of cycles in the process */
-    while(medium->isbusy)
+    while(mediums->isbusy)
         sched_yield();
     
     /* wait ifs time */
     nanosleep(&ifs, NULL);
     
-    if(medium->isbusy)
+    if(mediums->isbusy)
         goto not_idle;
     
     /* pick random number between 0 and 2^k - 1 */
@@ -257,7 +270,7 @@ not_idle:
     sendRTS(s);
         
     while(true) {
-        status = slowread(&ack, sizeof(ack));
+        status = slowread(mediumc, &ack, sizeof(ack));
         if(status == EINTR) {
             K++;
             logevent("Timed out: K is now: %d", K);
@@ -273,7 +286,7 @@ not_idle:
             if(addr_cmp(name_stripped, ack.addr1)) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
                 if(checksum == ack.FCS) {
-                    logevent("~~~~~~~~~~~~~~~~~~~GOT ACK");
+                    logevent("GOT ACK");
                     send_frame(s);
                 }
                 else {
@@ -298,7 +311,7 @@ void sendRTS(send_s *s)
     
     frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
     
-    slowwrite(&frame, sizeof(frame));
+    slowwrite(mediums, &frame, sizeof(frame));
     logevent("%s sent RTS", name_stripped);
 }
 
@@ -314,7 +327,7 @@ void send_frame(send_s *s)
     checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)buf, (uInt)(sizeof(s->size) + s->size));
     sprintf(&buf[sizeof(s->size) + s->size], (char *)&checksum, sizeof(checksum));
     
-    slowwrite(buf, total);
+    slowwrite(mediums, buf, total);
 }
 
 void sigUSR1(int sig)

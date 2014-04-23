@@ -8,12 +8,13 @@
 #include <pthread.h>
 
 #define BPS 10000000
-#define SHM_KEY 0xDEADBEAF
+#define SHM_KEY_C 0xDEADBEAC
+#define SHM_KEY_S 0xDEADBEA5
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
 #define MEDIUM_SIZE 2048
 #define WAIT_TIME 0.5
-#define TIME_SLOT 1000
+#define TIME_SLOT 100
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
 #define RTS_SUBTYPE 0x0b00
@@ -78,14 +79,17 @@ extern FILE *logfile;
 extern char *name;
 extern char *name_stripped;
 extern size_t name_len;
-extern medium_s *medium;
+extern medium_s *mediums;
+extern medium_s *mediumc;
 
-extern ssize_t slowread(void *buf, size_t size);
-extern void slowwrite(void *data, size_t size);
+extern ssize_t slowread(medium_s *medium, void *buf, size_t size);
+extern void slowwrite(medium_s *medium, void *data, size_t size);
 extern pthread_t timer_thread;
 
-extern size_t write_shm(char *data, size_t size);
-extern size_t read_shm(char *data, size_t size);
+extern size_t write_shm(medium_s *medium, char *data, size_t size);
+extern size_t read_shm(medium_s *medium, char *data, size_t start, size_t size);
+
+extern void set_busy(medium_s *medium, bool isbusy);
 
 extern bool addr_cmp(char *addr1, char *addr2);
 extern void start_timer(double time);
