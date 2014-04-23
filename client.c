@@ -40,7 +40,6 @@ struct send_s
 
 static int tasks[2];
 static int shm_medium;
-static char *medium_busy;
 static struct timespec ifs;
 static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
@@ -52,7 +51,6 @@ static void *send_thread(void *);
 static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
 static void send_frame(send_s *s);
-static void *timer_thread(void *);
 
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
@@ -108,10 +106,8 @@ int main(int argc, char *argv[])
     
     main_thread = pthread_self();
     
-    sscanf(argv[3], "%d.%d.%d.%d", &medium[0], &medium[1], &tasks[0], &tasks[1]);
+    sscanf(argv[3], "%d.%d", &tasks[0], &tasks[1]);
     
-    //fcntl(medium[0], F_SETFL, O_NONBLOCK);
-          
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
@@ -131,7 +127,7 @@ int main(int argc, char *argv[])
     }
     
     sa.sa_handler = sigALARM;
-    sa.sa_flags = SA_SIGINFO;
+    sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
     status = sigaction(SIGALRM, &sa, NULL);
     if(status < 0) {
@@ -145,8 +141,8 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    medium_busy = shmat(shm_medium, NULL, 0);
-    if(medium_busy == (char *)-1) {
+    medium = shmat(shm_medium, NULL, 0);
+    if(medium == (medium_s *)-1) {
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
@@ -246,28 +242,25 @@ void doCSMACA(send_s *s)
     
 not_idle:
     /* wait until idle and waste tons of cycles in the process */
-    while(*medium_busy)
+    while(medium->isbusy)
         sched_yield();
     
     /* wait ifs time */
     nanosleep(&ifs, NULL);
     
-    if(*medium_busy)
+    if(medium->isbusy)
         goto not_idle;
     
     /* pick random number between 0 and 2^k - 1 */
     R = rand() % (1 << K);
     
     sendRTS(s);
-    
-    start_timer(TIMER_TIME);
-    
+        
     while(true) {
-        status = read(medium[0], &ack, sizeof(ack));
-        if(timed_out) {
+        status = slowread(&ack, sizeof(ack));
+        if(status == EINTR) {
             K++;
-            puts("Timed out");
-            timed_out = false;
+            logevent("Timed out: K is now: %d", K);
             
             ts.tv_nsec = R*TIME_SLOT;
             ts.tv_sec = 0;
@@ -276,15 +269,15 @@ not_idle:
             
             goto not_idle;
         }
-        if(ack.FC == ACK_SUBTYPE) {
-            puts("Got Ack");
-            timed_out = 0;
-            printf("comparing %s %6s", name_stripped, ack.addr1);
+        else if((ack.FC & ACK_SUBTYPE)) {            
             if(addr_cmp(name_stripped, ack.addr1)) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
                 if(checksum == ack.FCS) {
-                    puts("GOT ACK :D");
+                    logevent("~~~~~~~~~~~~~~~~~~~GOT ACK");
                     send_frame(s);
+                }
+                else {
+                    //flush_medium();
                 }
             }
         }

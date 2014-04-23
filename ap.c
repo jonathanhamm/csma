@@ -35,7 +35,6 @@ sym_table_s station_table;
 pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int shm_medium;
-static char *medium_status;
 
 static void process_tasks(void);
 static void create_node(char *id, char *ifs);
@@ -72,6 +71,7 @@ int main(int argc, char *argv[])
     name = "ap";
     name_stripped = "ap";
     name_len = sizeof("ap")-1;
+    logfile = stdout;
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
     }
     
     sa.sa_handler = sigALARM;
-    sa.sa_flags = SA_SIGINFO;
+    sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
     status = sigaction(SIGALRM, &sa, NULL);
     if(status < 0) {
@@ -100,24 +100,19 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    status = pipe(medium);
-    if(status < 0) {
-        perror("Error Creating Pipe");
-        exit(EXIT_FAILURE);
-    }
-    
-    shm_medium = shmget(SHM_KEY, sizeof(char), IPC_CREAT|IPC_R|IPC_W);
+    shm_medium = shmget(SHM_KEY, sizeof(*medium), IPC_CREAT|IPC_R|IPC_W);
     if(shm_medium < 0) {
         perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);
     }
     
-    medium_status = shmat(shm_medium, NULL, 0);
-    if(medium_status == (char *)-1) {
+    medium = shmat(shm_medium, NULL, 0);
+    if(medium == (medium_s *)-1) {
         perror("Failed to attached shared memory segment.");
         exit(EXIT_FAILURE);
     }
-    *medium_status = 0;
+    medium->isbusy = false;
+    pthread_mutex_init(&medium->lock, NULL);
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -206,7 +201,7 @@ void create_node(char *id, char *ifs)
             perror("Error Creating Pipe");
             exit(EXIT_FAILURE);
         }
-        sprintf(fd_buf, "%d.%d.%d.%d", medium[0], medium[1], fd[0], fd[1]);
+        sprintf(fd_buf, "%d.%d", fd[0], fd[1]);
         argv[0] = CLIENT_PATH;
         argv[1] = id;
         argv[2] = ifs;
@@ -284,44 +279,32 @@ void kill_childid(char *id)
 
 void *process_request(void *arg)
 {
-    int nread = 0;
     ssize_t status;
     union {
         rts_s rts;
         cts_ack_s ctack;
     }data;
     uint32_t checksum;
-    char *fptr = (char *)&data;
     
     while(true) {
-        status = read(medium[0], fptr, sizeof(char));
         status = slowread(&data, sizeof(data));
-        if(status != EAGAIN) {
-            nread++;
-            fptr++;
-            if(nread == sizeof(uint16_t)) {
-                if(data.rts.FC & RTS_SUBTYPE) {
-                    puts("got rts");
-                    while(nread < sizeof(data.rts)) {
-                        if(read(medium[0], fptr, sizeof(char)) != EAGAIN) {
-                            fptr++;
-                            nread++;
-                        }
-                    }
-                    printf("Validating Checksum %.6s\n", data.rts.addr1);
-                    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
-                    if(checksum == data.rts.FCS) {
-                        *medium_status = 1;
-                        send_ack(data.rts.addr1);
-                    }
+        if(status == EINTR) {
+            medium->isbusy = false;
+            logevent("Timed out session");
+        }
+        else {
+            if(data.rts.FC & RTS_SUBTYPE) {
+                checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
+                if(checksum == data.rts.FCS) {
+                    medium->isbusy = true;
+                    send_ack(data.rts.addr1);
+                }
+                else {
+                    logevent("Checksum Validation Failed");
                 }
             }
         }
-        if(nread == sizeof(data)) {
-            nread = 0;
-            fptr = (char *)&data;
-        }
-            
+        
     }
 }
 
@@ -333,8 +316,8 @@ void send_ack(char *addr1)
     ack.D = 1;
     memcpy(ack.addr1, addr1, sizeof(ack.addr1));
     ack.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
-    write(medium[1], &ack, sizeof(ack));
-    puts("sent ack");
+    slowwrite(&ack, sizeof(ack));
+    logevent("Got Valid RTS and Sent ACK");
 }
 
 

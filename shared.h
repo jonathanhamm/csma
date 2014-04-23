@@ -11,8 +11,9 @@
 #define SHM_KEY 0xDEADBEAF
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
+#define MEDIUM_SIZE 2048
 #define WAIT_TIME 0.5
-#define TIME_SLOT 20
+#define TIME_SLOT 1000
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
 #define RTS_SUBTYPE 0x0b00
@@ -24,6 +25,7 @@ typedef struct rts_s rts_s;
 typedef struct cts_ack_s cts_ack_s;
 typedef struct frame_s frame_s;
 typedef struct timerarg_s timerarg_s;
+typedef struct medium_s medium_s;
 
 enum funcs_e {
     FNET_SEND,
@@ -64,15 +66,26 @@ struct timerarg_s
     pthread_t sender;
 };
 
+struct medium_s
+{
+    pthread_mutex_t lock;
+    bool isbusy;
+    size_t size;
+    char buf[MEDIUM_SIZE];
+};
+
 extern FILE *logfile;
 extern char *name;
 extern char *name_stripped;
 extern size_t name_len;
-extern volatile sig_atomic_t timed_out;
-extern int medium[2];
+extern medium_s *medium;
 
 extern ssize_t slowread(void *buf, size_t size);
 extern void slowwrite(void *data, size_t size);
+extern pthread_t timer_thread;
+
+extern size_t write_shm(char *data, size_t size);
+extern size_t read_shm(char *data, size_t size);
 
 extern bool addr_cmp(char *addr1, char *addr2);
 extern void start_timer(double time);
