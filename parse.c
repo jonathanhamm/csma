@@ -1958,11 +1958,13 @@ inline void buf_free(buf_s *b)
 
 void task_enqueue(task_s *t)
 {
-    if(tqueue.head)
-        tqueue.tail->next = t;
-    else
-        tqueue.head = t;
-    tqueue.tail = t;
+    if(parse_success) {
+        if(tqueue.head)
+            tqueue.tail->next = t;
+        else
+            tqueue.head = t;
+        tqueue.tail = t;
+    }
 }
 
 task_s *task_dequeue(void)

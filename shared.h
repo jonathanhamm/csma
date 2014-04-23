@@ -9,14 +9,13 @@
 #include <signal.h>
 #include <pthread.h>
 
-#define BPS 10000000
 #define SHM_KEY_C 0xDEADBEAC
 #define SHM_KEY_S 0xDEADBEA5
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
 #define MEDIUM_SIZE 2048
 #define WAIT_TIME 0.5
-#define TIME_SLOT 100
+#define TIME_SLOT 10
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
 #define RTS_SUBTYPE 0x0b00

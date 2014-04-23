@@ -303,8 +303,8 @@ void *process_request(void *arg)
     uint32_t checksum;
     
     while(true) {
-        status = slowread(mediums, &data, sizeof(data));
         mediums->size = 0;
+        status = slowread(mediums, &data, sizeof(data));
         if(status == EINTR) {
             set_busy(mediums, false);
             logevent("Timed out session");

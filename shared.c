@@ -128,11 +128,11 @@ void logevent(char *fs, ...)
     
     pthread_mutex_lock(&lock);
     
-    fprintf(logfile, "%6s", name_stripped);
+    fprintf(logfile, "%.6s", name_stripped);
     diff = 6 - (name_len - 2);
-    for(i = 0; i < diff; i++)
-        fputc('.', logfile);
-    fputc(' ', logfile);
+    //for(i = 0; i < diff; i++)
+   //     fputc('.', logfile);
+    fputc('\t', logfile);
     
     time(&t);
     localtime_r(&t, &tm_time);

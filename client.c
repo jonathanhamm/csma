@@ -45,8 +45,6 @@ static struct timespec ifs;
 static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
 
-static FILE *out;
-
 static void parse_send(void);
 static void *send_thread(void *);
 static void doCSMACA(send_s *s);
@@ -86,14 +84,14 @@ int main(int argc, char *argv[])
     }
     
     strcpy(&outfile[4], name_stripped);
-    out = fopen(outfile, "a+");
-    if(!out) {
+    logfile = fopen(outfile, "w");
+    if(!logfile) {
         perror("Error Creating file for redirection");
         exit(EXIT_FAILURE);
     }
     
-    //dup2(fileno(out), STDOUT_FILENO);
-    //dup2(fileno(out), STDERR_FILENO);
+    //dup2(fileno(logfile), STDOUT_FILENO);
+   // dup2(fileno(logfile), STDERR_FILENO);
     
     logfile = stdout;
     
@@ -189,7 +187,7 @@ int main(int argc, char *argv[])
         }
     }
     free(name_stripped);
-    fclose(out);
+    fclose(logfile);
     exit(EXIT_SUCCESS);
 }
 
@@ -272,7 +270,6 @@ not_idle:
         
     while(true) {
         status = slowread(mediumc, &ack, sizeof(ack));
-       
         /* if timed out */
         if(status == EINTR) {
             K++;
@@ -290,10 +287,16 @@ not_idle:
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
                 if(checksum == ack.FCS) {
                     logevent("GOT ACK");
+                    mediumc->size = 0;
                     send_frame(s);
                     return;
                 }
                 else {
+                    K++;
+                    logevent("Timed out: K is now: %d", K);
+                    ts.tv_nsec = R*TIME_SLOT;
+                    ts.tv_sec = 0;
+                    nanosleep(&ts, NULL);
                     goto not_idle;
                 }
             }

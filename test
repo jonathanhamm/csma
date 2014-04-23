@@ -1,89 +1,15 @@
 #Node Declarations
-
-a = {
-    bob = "hi",
-    derp = node("derp"),
-    omg = 10,
-    lol = {
-        bob = node("wahaha"),
-        woah = node(32),
-        omg = node(3),
-        4
-    },
-    bob = 3,
-    de2rp = 32,
-    32,32
-}
-
-
 nodes = {
-    sub1 = {
-        a = node("Bob"),
-        b = node("wah"),
-        c = node("ragg"),
-        4
-    },
-    sub2 = {
-        
-    },
-    sub3 = {
-        
-    }
+            a = node("a"),
+            b = node("b"),
+            c = node("c"),
+            d = node("d"),
+            e = node("e"),
+            f = node("f"),
+            g = node("g"),
+            h = node("h"),
+            i = node("i"),
+            j = node("j")
 }
 
-c = {1, 2, 3, 4, 5}
-c[5] = 4
-
-message1 = "hello world"
-message2 = "goodbye world"
-message4 = 3.14159
-
-#a.send("b", message1)
-
-#############################################
-#   Node Commands:
-#############################################
-
-#broadcast
-#a.send("b", "hello son")
-
-#a.send("hello world")
-
-#a.send("hello world")
-
-#a.send(b, "hello world", rand(10), repeat=true)
-
-#a.send("hello world")
-
-#a.send("hello world")
-
-print("hey")
-
-group = {a.bob, a.omg}
-
-a.x = 4
-a.x = 7
-
-rand()
-
-print(y=3)
-
-print(a.lol[3])
-print()
-
-print("hahaha")
-
-a=node("herp")
-b=node("derp")
-
-send(a,b,"hello")
-
-c = node("zomg")
-d = node("<><>")
-
-bob={a,b} 
-bob.send(a, "hello son", period = 5 ,repeat = true)
-c.send(b, "hello asdfasdf;jhadsfjhasldf", period = 0.4 ,repeat = true)
-d.send(a, "lajsdhflakjhdflakjdhfladjhfalsdjhflasdjhflasdjhf", period = 0.2, repeat = true)
-
-#a.bob.send("hello world")
+nodes.a.send(nodes, "Hello Son", repeat=true, period=0.3)
