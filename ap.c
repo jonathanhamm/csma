@@ -21,7 +21,6 @@
 #include "ap.h"
 #include "shared.h"
 
-#define WAIT_TIME 0.5
 #define CLIENT_PATH "./client"
 
 typedef struct station_s station_s;
@@ -37,7 +36,6 @@ pthread_mutex_t station_table_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int shm_medium;
 static char *medium_status;
-static int medium[2];
 
 static void process_tasks(void);
 static void create_node(char *id, char *ifs);
@@ -297,6 +295,7 @@ void *process_request(void *arg)
     
     while(true) {
         status = read(medium[0], fptr, sizeof(char));
+        status = slowread(&data, sizeof(data));
         if(status != EAGAIN) {
             nread++;
             fptr++;
@@ -314,7 +313,6 @@ void *process_request(void *arg)
                     if(checksum == data.rts.FCS) {
                         *medium_status = 1;
                         send_ack(data.rts.addr1);
-                        start_timer(WAIT_TIME);
                     }
                 }
             }
@@ -338,6 +336,7 @@ void send_ack(char *addr1)
     write(medium[1], &ack, sizeof(ack));
     puts("sent ack");
 }
+
 
 void sigUSR1(int sig)
 {

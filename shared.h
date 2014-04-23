@@ -11,6 +11,7 @@
 #define SHM_KEY 0xDEADBEAF
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
+#define WAIT_TIME 0.5
 #define TIME_SLOT 20
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
@@ -68,6 +69,10 @@ extern char *name;
 extern char *name_stripped;
 extern size_t name_len;
 extern volatile sig_atomic_t timed_out;
+extern int medium[2];
+
+extern ssize_t slowread(void *buf, size_t size);
+extern void slowwrite(void *data, size_t size);
 
 extern bool addr_cmp(char *addr1, char *addr2);
 extern void start_timer(double time);

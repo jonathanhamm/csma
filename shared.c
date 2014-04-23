@@ -1,13 +1,16 @@
 #include "shared.h"
 #include <stdarg.h>
+#include <errno.h>
 #include <time.h>
 
+#include <unistd.h>
 #include <sys/time.h>
 
 FILE *logfile;
 char *name;
 char *name_stripped;
 size_t name_len;
+int medium[2];
 volatile sig_atomic_t timed_out;
 
 static void *timer_thread(void *arg);
@@ -110,6 +113,33 @@ void logevent(char *fs, ...)
     fflush(logfile);
     
     pthread_mutex_unlock(&lock);
+}
+
+/* Make reads even "more" of a race condition */
+ssize_t slowread(void *buf, size_t size)
+{
+    size_t i;
+    ssize_t status;
+    
+    start_timer(WAIT_TIME);
+    for(i = 0; i < size; i++) {
+        status = read(medium[0], buf+i, sizeof(char));
+        if(status == EINTR)
+            return status;
+        sched_yield();
+    }
+    return status;
+}
+
+/* Make writes even "more" of a race condition */
+void slowwrite(void *data, size_t size)
+{
+    size_t i;
+    
+    for(i = 0; i < size; i++) {
+        write(medium[1], data+i, sizeof(char));
+        sched_yield();
+    }
 }
 
 void *alloc(size_t size)

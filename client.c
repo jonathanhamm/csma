@@ -38,7 +38,6 @@ struct send_s
     bool repeat;
 };
 
-static int medium[2];
 static int tasks[2];
 static int shm_medium;
 static char *medium_busy;
@@ -54,7 +53,6 @@ static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
 static void send_frame(send_s *s);
 static void *timer_thread(void *);
-static void slowwrite(char *data, size_t size);
 
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
@@ -307,7 +305,7 @@ void sendRTS(send_s *s)
     
     frame.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&frame, sizeof(frame)-sizeof(uint32_t));
     
-    slowwrite((char *)&frame, sizeof(frame));
+    slowwrite(&frame, sizeof(frame));
     logevent("%s sent RTS", name_stripped);
 }
 
@@ -324,17 +322,6 @@ void send_frame(send_s *s)
     sprintf(&buf[sizeof(s->size) + s->size], (char *)&checksum, sizeof(checksum));
     
     slowwrite(buf, total);
-}
-
-/* Make writes even "more" of a race condition */
-void slowwrite(char *data, size_t size)
-{
-    size_t i;
-    
-    for(i = 0; i < size; i++) {
-        write(medium[1], data+i, sizeof(char));
-        sched_yield();
-    }
 }
 
 void sigUSR1(int sig)
