@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
+#include <signal.h>
 #include <pthread.h>
 
 #define BPS 10000000
