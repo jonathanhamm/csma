@@ -22,7 +22,6 @@
 
 #define REDIRECT_OUTPUT
 
-
 #define TIMER_TIME 0.5
 
 typedef struct send_s send_s;
@@ -41,12 +40,9 @@ struct send_s
 
 static int medium[2];
 static int tasks[2];
-static char *name, *name_stripped;
-static size_t name_len;
 static int shm_medium;
 static char *medium_busy;
 static struct timespec ifs;
-static FILE *logf;
 static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
 
@@ -58,7 +54,6 @@ static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
 static void send_frame(send_s *s);
 static void *timer_thread(void *);
-static void logevent(char *, ...);
 static void slowwrite(char *data, size_t size);
 
 static void sigUSR1(int sig);
@@ -87,6 +82,10 @@ int main(int argc, char *argv[])
     if(access("out/", F_OK)) {
         if(errno == ENOENT)
             mkdir("out", S_IRWXU);
+        else {
+            perror("Directory Access");
+            exit(EXIT_FAILURE);
+        }
     }
     
     strcpy(&outfile[4], name_stripped);
@@ -99,7 +98,7 @@ int main(int argc, char *argv[])
     //dup2(fileno(out), STDOUT_FILENO);
     //dup2(fileno(out), STDERR_FILENO);
     
-    logf = stdout;
+    logfile = stdout;
     
     /* seed random number generator */
     srand((int)time(NULL));
@@ -336,41 +335,6 @@ void slowwrite(char *data, size_t size)
         write(medium[1], data+i, sizeof(char));
         sched_yield();
     }
-}
-
-void logevent(char *fs, ...)
-{
-    va_list args;
-    size_t i, diff;
-    time_t t;
-    struct tm tm_time;
-    char timestamp[16];
-    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-    
-    pthread_mutex_lock(&lock);
-    
-    fprintf(logf, "%6s", name_stripped);
-    diff = 6 - (name_len - 2);
-    for(i = 0; i < diff; i++)
-        fputc('.', logf);
-    fputc(' ', logf);
-    
-    time(&t);
-    localtime_r(&t, &tm_time);
-    strftime(timestamp, 16, "%T:\t", &tm_time);
-    
-    fprintf(logf, "%s", timestamp);
-    
-    va_start(args, fs);
-    vfprintf(logf, fs, args);
-    va_end(args);
-
-    fputc('\n', logf);
-    
-    fflush(logf);
-    
-    pthread_mutex_unlock(&lock);
-
 }
 
 void sigUSR1(int sig)

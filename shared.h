@@ -1,6 +1,7 @@
 #ifndef SHARED_H_
 #define SHARED_H_
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -62,10 +63,15 @@ struct timerarg_s
     pthread_t sender;
 };
 
+extern FILE *logfile;
+extern char *name;
+extern char *name_stripped;
+extern size_t name_len;
 extern volatile sig_atomic_t timed_out;
 
 extern bool addr_cmp(char *addr1, char *addr2);
 extern void start_timer(double time);
+extern void logevent(char *fs, ...);
 extern void sigALARM(int sig);
 extern void *alloc(size_t size);
 extern void *allocz(size_t size);

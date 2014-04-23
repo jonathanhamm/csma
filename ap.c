@@ -71,6 +71,10 @@ int main(int argc, char *argv[])
         closefile();
     }
     
+    name = "ap";
+    name_stripped = "ap";
+    name_len = sizeof("ap")-1;
+    
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);

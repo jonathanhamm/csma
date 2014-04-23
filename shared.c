@@ -1,9 +1,13 @@
 #include "shared.h"
-#include <stdio.h>
+#include <stdarg.h>
 #include <time.h>
 
 #include <sys/time.h>
 
+FILE *logfile;
+char *name;
+char *name_stripped;
+size_t name_len;
 volatile sig_atomic_t timed_out;
 
 static void *timer_thread(void *arg);
@@ -72,6 +76,40 @@ void start_timer(double time)
 void sigALARM(int sig)
 {
     timed_out = true;
+}
+
+void logevent(char *fs, ...)
+{
+    va_list args;
+    size_t i, diff;
+    time_t t;
+    struct tm tm_time;
+    char timestamp[16];
+    static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    
+    pthread_mutex_lock(&lock);
+    
+    fprintf(logfile, "%6s", name_stripped);
+    diff = 6 - (name_len - 2);
+    for(i = 0; i < diff; i++)
+        fputc('.', logfile);
+    fputc(' ', logfile);
+    
+    time(&t);
+    localtime_r(&t, &tm_time);
+    strftime(timestamp, 16, "%T:\t", &tm_time);
+    
+    fprintf(logfile, "%s", timestamp);
+    
+    va_start(args, fs);
+    vfprintf(logfile, fs, args);
+    va_end(args);
+    
+    fputc('\n', logfile);
+    
+    fflush(logfile);
+    
+    pthread_mutex_unlock(&lock);
 }
 
 void *alloc(size_t size)
