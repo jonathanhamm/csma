@@ -259,6 +259,10 @@ void lex(char *src)
                     *fptr = '\0';
                     if(!strcmp(bptr, "inf"))
                         add_token(bptr, TOK_TYPE_NUM, TOK_ATT_INF, lineno);
+                    else if(!strcmp(bptr, "true"))
+                        add_token("1", TOK_TYPE_NUM, TOK_ATT_INT, lineno);
+                    else if(!strcmp(bptr, "false"))
+                        add_token("0", TOK_TYPE_NUM, TOK_ATT_INT, lineno);
                     else
                         add_token(bptr, TOK_TYPE_ID, TOK_ATT_DEFAULT, lineno);
                     *fptr = c;

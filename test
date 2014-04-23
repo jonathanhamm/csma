@@ -78,7 +78,7 @@ b=node("derp")
 
 send(a,b,"hello")
 bob={a,b} 
-bob.send(a, "hello son", period = 0.99 ,repeat = 1)
+bob.send(a, "hello son", period = 0.99 ,repeat = true)
 
 
 #a.bob.send("hello world")
