@@ -1,5 +1,13 @@
 #include "shared.h"
 #include <stdio.h>
+#include <time.h>
+
+#include <sys/time.h>
+
+volatile sig_atomic_t timed_out;
+
+static void *timer_thread(void *arg);
+
 
 bool addr_cmp(char *addr1, char *addr2)
 {
@@ -11,6 +19,60 @@ bool addr_cmp(char *addr1, char *addr2)
     return (*a32 == *b32) && (*a16 == *b16);
 }
 
+void *timer_thread(void *arg)
+{
+    struct timespec ts;
+    struct timeval tp;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    double tmp;
+    timerarg_s *targ = arg;
+    
+    pthread_mutex_init(&lock, NULL);
+    pthread_cond_init(&cond, NULL);
+    
+    timed_out = false;
+    
+    gettimeofday(&tp, NULL);
+    
+    tmp = targ->time + tp.tv_sec + tp.tv_usec/1e6;
+    ts.tv_sec = (long)tmp;
+    ts.tv_nsec = (long)((tmp - ts.tv_sec)*1e9);
+    
+    pthread_mutex_lock(&lock);
+    pthread_cond_timedwait(&cond, &lock, &ts);
+    pthread_mutex_unlock(&lock);
+    
+    pthread_mutex_destroy(&lock);
+    pthread_cond_destroy(&cond);
+    
+    pthread_kill(targ->sender, SIGALRM);
+    
+    free(arg);
+    
+    pthread_exit(NULL);
+}
+
+void start_timer(double time)
+{
+    int status;
+    timerarg_s *t = alloc(sizeof(t));
+    pthread_t timer;
+    
+    t->time = time;
+    t->sender = pthread_self();
+    status = pthread_create(&timer, NULL, timer_thread, t);
+    if(status) {
+        perror("Failed to create timer thread");
+        exit(EXIT_FAILURE);
+    }
+    while(timed_out);
+}
+
+void sigALARM(int sig)
+{
+    timed_out = true;
+}
 
 void *alloc(size_t size)
 {

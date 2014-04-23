@@ -21,6 +21,7 @@
 #include "ap.h"
 #include "shared.h"
 
+#define WAIT_TIME 0.5
 #define CLIENT_PATH "./client"
 
 typedef struct station_s station_s;
@@ -48,7 +49,6 @@ static void send_ack(char *addr1);
 
 static void sigUSR1(int sig);
 static void sigUSR2(int sig);
-static void sigINT(int sig);
 
 int main(int argc, char *argv[])
 {
@@ -86,6 +86,15 @@ int main(int argc, char *argv[])
     status = sigaction(SIGUSR2, &sa, NULL);
     if(status < 0) {
         perror("Error installing handler for SIGUSR2");
+        exit(EXIT_FAILURE);
+    }
+    
+    sa.sa_handler = sigALARM;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    status = sigaction(SIGALRM, &sa, NULL);
+    if(status < 0) {
+        perror("Error installing handler for SIGTERM");
         exit(EXIT_FAILURE);
     }
     
@@ -279,7 +288,6 @@ void *process_request(void *arg)
         rts_s rts;
         cts_ack_s ctack;
     }data;
-    struct timespec tval;
     uint32_t checksum;
     char *fptr = (char *)&data;
     
@@ -290,17 +298,19 @@ void *process_request(void *arg)
             fptr++;
             if(nread == sizeof(uint16_t)) {
                 if(data.rts.FC & RTS_SUBTYPE) {
+                    puts("got rts");
                     while(nread < sizeof(data.rts)) {
                         if(read(medium[0], fptr, sizeof(char)) != EAGAIN) {
                             fptr++;
                             nread++;
                         }
                     }
-                    printf("Validating Checksum %6s\n", data.rts.addr1);
+                    printf("Validating Checksum %.6s\n", data.rts.addr1);
                     checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
                     if(checksum == data.rts.FCS) {
                         *medium_status = 1;
                         send_ack(data.rts.addr1);
+                        start_timer(WAIT_TIME);
                     }
                 }
             }
@@ -322,6 +332,7 @@ void send_ack(char *addr1)
     memcpy(ack.addr1, addr1, sizeof(ack.addr1));
     ack.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
     write(medium[1], &ack, sizeof(ack));
+    puts("sent ack");
 }
 
 void sigUSR1(int sig)
