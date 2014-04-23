@@ -30,6 +30,7 @@ typedef struct medium_s medium_s;
 
 enum funcs_e {
     FNET_SEND,
+    FNET_RECEIVE,
     FNET_NODE,
     FNET_RAND,
     FNET_SIZE,

@@ -17,7 +17,6 @@ medium_s *mediumc;
 pthread_t timer_thread;
 
 static volatile sig_atomic_t timed_out;
-
 static void *timer_threadf(void *arg);
 
 

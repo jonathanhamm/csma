@@ -177,6 +177,7 @@ int main(int argc, char *argv[])
                     case FNET_SEND:
                         parse_send();
                         break;
+                
                     default:
                         fprintf(stderr, "Unknown Data Type Send %d\n", f);
                         break;
@@ -264,13 +265,15 @@ not_idle:
     if(mediums->isbusy)
         goto not_idle;
     
-    /* pick random number between 0 and 2^k - 1 */
+    /* pick random number between 0 and 2^K - 1 */
     R = rand() % (1 << K);
     
     sendRTS(s);
         
     while(true) {
         status = slowread(mediumc, &ack, sizeof(ack));
+       
+        /* if timed out */
         if(status == EINTR) {
             K++;
             logevent("Timed out: K is now: %d", K);
@@ -282,15 +285,16 @@ not_idle:
             
             goto not_idle;
         }
-        else if((ack.FC & ACK_SUBTYPE)) {            
+        else if((ack.FC & ACK_SUBTYPE)) {
             if(addr_cmp(name_stripped, ack.addr1)) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
                 if(checksum == ack.FCS) {
                     logevent("GOT ACK");
                     send_frame(s);
+                    return;
                 }
                 else {
-                    //flush_medium();
+                    goto not_idle;
                 }
             }
         }
@@ -300,11 +304,9 @@ not_idle:
 void sendRTS(send_s *s)
 {
     rts_s frame = {0};
-    size_t size = RTS_SIZE + CTS_ACK_SIZE + s->size;
     
     frame.FC = RTS_SUBTYPE;
-    frame.D = (size * 1000000) / BPS + !!((size * 1000000) % BPS);
-    
+    frame.D = s->size;
     
     memcpy(frame.addr1, name_stripped, name_len-2);
     memcpy(frame.addr2, &s->dst[1], s->dlen-2);
@@ -317,17 +319,8 @@ void sendRTS(send_s *s)
 
 void send_frame(send_s *s)
 {
-    uint32_t checksum;
-    size_t total = sizeof(s->size) + s->size + sizeof(checksum);
-    char buf[total];
-    
-    sprintf(buf, "%ld", s->size);
-    memcpy(&buf[sizeof(s->size)], s->payload, s->size);
-
-    checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)buf, (uInt)(sizeof(s->size) + s->size));
-    sprintf(&buf[sizeof(s->size) + s->size], (char *)&checksum, sizeof(checksum));
-    
-    slowwrite(mediums, buf, total);
+    slowwrite(mediums, s->payload, s->size);
+    logevent("Sent Payload %s", s->payload);
 }
 
 void sigUSR1(int sig)

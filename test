@@ -77,8 +77,13 @@ a=node("herp")
 b=node("derp")
 
 send(a,b,"hello")
-bob={a,b} 
-bob.send(a, "hello son", period = 0.99 ,repeat = true)
 
+c = node("zomg")
+d = node("<><>")
+
+bob={a,b} 
+bob.send(a, "hello son", period = 5 ,repeat = true)
+c.send(b, "hello asdfasdf;jhadsfjhasldf", period = 0.4 ,repeat = true)
+d.send(a, "lajsdhflakjhdflakjdhfladjhfalsdjhflasdjhflasdjhf", period = 0.2, repeat = true)
 
 #a.bob.send("hello world")

@@ -299,10 +299,12 @@ void *process_request(void *arg)
         rts_s rts;
         cts_ack_s ctack;
     }data;
+    char *payload;
     uint32_t checksum;
     
     while(true) {
         status = slowread(mediums, &data, sizeof(data));
+        mediums->size = 0;
         if(status == EINTR) {
             set_busy(mediums, false);
             logevent("Timed out session");
@@ -313,15 +315,24 @@ void *process_request(void *arg)
                 if(checksum == data.rts.FCS) {
                     set_busy(mediums, true);
                     send_ack(data.rts.addr1);
+                    payload = alloc(data.rts.D+1);
+                    payload[data.rts.D] = '\0';
+                    status = slowread(mediums, payload, data.rts.D);
+                    if(status == EINTR) {
+                        logevent("timed out waiting on payload");
+                    }
+                    else {
+                        logevent("Got payload: %s", payload);
+                        mediums->isbusy = false;
+                    }
                 }
                 else {
-                  //  logevent("Checksum Validation Failed");
+                    logevent("Checksum Validation Failed");
                     set_busy(mediums, false);
                 }
             }
             else {
                 set_busy(mediums, false);
-               // logevent("Invalid data %.6s", data.rts.addr1);
             }
         }
     }
