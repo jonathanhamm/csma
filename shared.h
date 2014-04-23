@@ -32,12 +32,12 @@ typedef struct medium_s medium_s;
 
 enum funcs_e {
     FNET_SEND,
-    FNET_RECEIVE,
     FNET_NODE,
     FNET_RAND,
     FNET_SIZE,
     FNET_KILL,
-    FNET_PRINT
+    FNET_PRINT,
+    FNET_RECEIVE
 };
 
 struct rts_s
