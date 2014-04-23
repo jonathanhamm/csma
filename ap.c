@@ -100,8 +100,8 @@ int main(int argc, char *argv[])
         perror("Error installing handler for SIGTERM");
         exit(EXIT_FAILURE);
     }
-    
-    shm_mediums = shmget(SHM_KEY_S, sizeof(*mediums), IPC_CREAT|IPC_R|IPC_W);
+
+    shm_mediums = shmget(SHM_KEY_S, sizeof(*mediums), IPC_CREAT|SHM_R|SHM_W);
     if(shm_mediums < 0) {
         perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);
@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
     mediums->isbusy = false;
     pthread_mutex_init(&mediums->lock, NULL);
     
-    shm_mediumc = shmget(SHM_KEY_C, sizeof(*mediumc), IPC_CREAT|IPC_R|IPC_W);
+    shm_mediumc = shmget(SHM_KEY_C, sizeof(*mediumc), IPC_CREAT|SHM_R|SHM_W);
     if(shm_mediumc < 0) {
         perror("Failed to set up shared memory segment");
         exit(EXIT_FAILURE);

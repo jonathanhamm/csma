@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_mediums = shmget(SHM_KEY_S, sizeof(char), IPC_R);
+    shm_mediums = shmget(SHM_KEY_S, sizeof(char), SHM_R);
     if(shm_mediums < 0) {
         perror("Failed to locate shared memory segment.");
         exit(EXIT_FAILURE);
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
-    shm_mediumc = shmget(SHM_KEY_C, sizeof(char), IPC_R);
+    shm_mediumc = shmget(SHM_KEY_C, sizeof(char), SHM_R);
     if(shm_mediumc < 0) {
         perror("Failed to locate shared memory segment.");
         exit(EXIT_FAILURE);
