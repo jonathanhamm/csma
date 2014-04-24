@@ -8,10 +8,10 @@ conspiracy = {
     l = node("l"), m = node("m")
 }
 
-victim = node(":(")
-bob = node("bob", ifs = 0.5)
+victim = node("derp")
+bob = node("bob", ifs = 1.2)
 
 #Commands
 conspiracy.send(victim, "LOLOLOLOLOLOLOLOLOLOLOLOLOLOLOLOL", period=1.5, repeat = true)
-victim.send(bob, "HELP", period=1.5, repeat = true)
+victim.send(bob, "HELP", period=1.1, repeat = true)
 bob.send(conspiracy.a, "I want money", period=1.5, repeat = true)

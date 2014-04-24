@@ -74,9 +74,11 @@ int main(int argc, char *argv[])
     name = argv[1];
     name_len = strlen(name);
     
+    /* Strip out quotes from node name and initialize it */
     name_stripped = alloc(name_len - 2);
     strncpy(name_stripped, &name[1], name_len-2);
     
+    /* Create file for logging */
     if(access("out/", F_OK)) {
         if(errno == ENOENT)
             mkdir("out", S_IRWXU);
@@ -98,10 +100,13 @@ int main(int argc, char *argv[])
     ifs.tv_sec = (long)ifs_d;
     ifs.tv_nsec = (long)((ifs_d - ifs.tv_sec)*1e9);
     
+    /* get thread 'id' */
     main_thread = pthread_self();
     
+    /* Get pipes so this process can communicate with command line process */
     sscanf(argv[3], "%d.%d", &tasks[0], &tasks[1]);
     
+    /* Set up handler for SIGUSR1 */
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
@@ -111,6 +116,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    /* Handler for releasing some resources on SIGTERM */
     sa.sa_handler = sigTERM;
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
@@ -120,6 +126,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    /* Handler for SIGALRM used in timer */
     sa.sa_handler = sigALARM;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
@@ -129,6 +136,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    /* Shared memory used for medium to send to access point */
     shm_mediums = shmget(SHM_KEY_S, sizeof(char), SHM_R);
     if(shm_mediums < 0) {
         perror("Failed to locate shared memory segment.");
@@ -141,6 +149,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     
+    /* Shared memory used for medium to receive from access point */
     shm_mediumc = shmget(SHM_KEY_C, sizeof(char), SHM_R);
     if(shm_mediumc < 0) {
         perror("Failed to locate shared memory segment.");
@@ -155,8 +164,10 @@ int main(int argc, char *argv[])
     
     printf("Successfully Started Station: %s\n", name);
     
+    /* Notify parent process */
     kill(getppid(), SIGUSR1);
     
+    /* Wait for commands from command line process */
     while(true) {
         if(pipe_full) {
             rstatus = read(tasks[0], &f, sizeof(f));
@@ -183,11 +194,14 @@ int main(int argc, char *argv[])
             pause();
         }
     }
-    free(name_stripped);
-    fclose(logfile);
+
     exit(EXIT_SUCCESS);
 }
 
+/* 
+ Parses a message from command line process
+ that creates a sending thread. 
+ */
 void parse_send(void)
 {
     int status;
@@ -218,6 +232,7 @@ void parse_send(void)
     }
 }
 
+/* Receive a message and display it */
 void parse_receive(void)
 {
     size_t size;
@@ -236,22 +251,21 @@ void parse_receive(void)
     free(payload);
 }
 
-
+/* Thread For Proccesses Attempting to Send */
 void *send_thread(void *arg)
 {
     send_s *s = arg;
-    long ns;
     struct timespec t;
     double wait_d = strtod(s->period, NULL);
-
-    t.tv_sec = (long)wait_d;
-    ns = (long)((wait_d - t.tv_sec)*1e9);
+    double actual;
     
     /* seed random number generator */
     srand((int)time(NULL));
     
     do {
-        t.tv_nsec = rand() % ns;
+        actual = wait_d * (double)rand()/(RAND_MAX);
+        t.tv_sec = (long)actual;
+        t.tv_nsec = (long)((actual - t.tv_sec)*1e9);
         nanosleep(&t, NULL);
         doCSMACA(s);
     }
@@ -265,6 +279,7 @@ void *send_thread(void *arg)
     pthread_exit(NULL);
 }
 
+/* Main CSMA/CA Function */
 void doCSMACA(send_s *s)
 {
     ssize_t status;
@@ -286,6 +301,7 @@ void doCSMACA(send_s *s)
         /* pick random number between 0 and 2^K - 1 */
         R = rand() % (1 << K);
         
+        /* Send Request to send */
         sendRTS(s);
         
         status = slowread(mediumc, &ackcts, sizeof(ackcts));
@@ -293,6 +309,7 @@ void doCSMACA(send_s *s)
         if(status != EINTR)
         if(ackcts.FC & CTS_SUBTYPE) {
             if(check_ack_cts(&ackcts)) {
+                mediumc->size = 0;
                 logevent("GOT CTS");
                 
                 /* wait ifs time */
@@ -319,7 +336,7 @@ void doCSMACA(send_s *s)
     sleep(rand()%3);
 }
 
-
+/* Send Request To Send */
 void sendRTS(send_s *s)
 {
     rts_s frame = {0};
@@ -336,6 +353,7 @@ void sendRTS(send_s *s)
     logevent("%s sent RTS", name_stripped);
 }
 
+/* Send Payload */
 void send_frame(send_s *s)
 {
     uint32_t *checkptr;
@@ -347,6 +365,7 @@ void send_frame(send_s *s)
     logevent("Sent Payload");
 }
 
+/* Check if CTS or ACK are valid */
 bool check_ack_cts(cts_ack_s *data)
 {
     uint32_t checksum;
@@ -359,6 +378,7 @@ bool check_ack_cts(cts_ack_s *data)
     return false;
 }
 
+/* Signal Handlers */
 
 void sigUSR1(int sig)
 {
@@ -367,5 +387,7 @@ void sigUSR1(int sig)
 
 void sigTERM(int sig)
 {
+    free(name_stripped);
+    fclose(logfile);
     exit(EXIT_SUCCESS);
 }
