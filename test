@@ -2,16 +2,13 @@
 conspiracy = {
     a = node("a"), b = node("b"),
     c = node("c"), d = node("d"),
-    e = node("e"), f = node("f"),
-    g = node("g"), h = node("h"),
-    i = node("i"), j = node("j"),
-    l = node("l"), m = node("m")
+    e = node("e"), f = node("f")
 }
 
 victim = node("derp")
-bob = node("bob", ifs = 1.2)
+bob = node("bob", ifs = 0.2)
 
 #Commands
-conspiracy.send(victim, "LOLOLOLOLOLOLOLOLOLOLOLOLOLOLOLOL", period=1.5, repeat = true)
+conspiracy.send(victim, "LOLOLOLOLOLOLOLOLOLOLOLOLOLOLOLOL", period=2.5, repeat = true)
 victim.send(bob, "HELP", period=1.1, repeat = true)
 bob.send(conspiracy.a, "I want money", period=1.5, repeat = true)

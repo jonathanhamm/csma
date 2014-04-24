@@ -333,7 +333,6 @@ void doCSMACA(send_s *s)
         }
     }
     logevent("Number of attempts exceeded 32");
-    sleep(rand()%3);
 }
 
 /* Send Request To Send */
