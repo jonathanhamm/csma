@@ -19,7 +19,6 @@
 #include <sys/stat.h>
 
 #include "parse.h"
-#include "ap.h"
 #include "shared.h"
 
 #define CLIENT_PATH "./client"
