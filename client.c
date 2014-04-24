@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <stdarg.h>
+#include <assert.h>
 #include <errno.h>
 
 #include <zlib.h>
@@ -46,10 +47,12 @@ static pthread_t main_thread;
 static volatile sig_atomic_t pipe_full;
 
 static void parse_send(void);
-static void *send_thread(void *);
+static void parse_receive(void);
+static void *send_thread(void *arg);
 static void doCSMACA(send_s *s);
 static void sendRTS(send_s *s);
 static void send_frame(send_s *s);
+static bool check_ack_cts(cts_ack_s *data);
 
 static void sigUSR1(int sig);
 static void sigTERM(int sig);
@@ -89,14 +92,6 @@ int main(int argc, char *argv[])
         perror("Error Creating file for redirection");
         exit(EXIT_FAILURE);
     }
-    
-    //dup2(fileno(logfile), STDOUT_FILENO);
-   // dup2(fileno(logfile), STDERR_FILENO);
-    
-    logfile = stdout;
-    
-    /* seed random number generator */
-    srand((int)time(NULL));
     
     /* set ifs time for this station */
     ifs_d = strtod(argv[2], NULL);
@@ -175,7 +170,9 @@ int main(int argc, char *argv[])
                     case FNET_SEND:
                         parse_send();
                         break;
-                
+                    case FNET_RECEIVE:
+                        parse_receive();
+                        break;
                     default:
                         fprintf(stderr, "Unknown Data Type Send %d\n", f);
                         break;
@@ -203,7 +200,7 @@ void parse_send(void)
     read(tasks[0], s->dst, s->dlen);
     
     read(tasks[0], &s->size, sizeof(s->size));
-    s->payload = alloc(s->size+1);
+    s->payload = alloc(s->size+sizeof(uint32_t)+1);
     s->payload[s->size] = '\0';
     read(tasks[0], s->payload, s->size);
     
@@ -221,17 +218,41 @@ void parse_send(void)
     }
 }
 
+void parse_receive(void)
+{
+    size_t size;
+    char *payload;
+    char src[6];
+    
+    read(tasks[0], &size, sizeof(size));
+    
+    payload = alloc(size+1);
+    payload[size] = '\0';
+    
+    read(tasks[0], payload, size);
+    read(tasks[0], src, sizeof(src));
+    
+    logevent("Received Message %s from %.6s", payload, src);
+    free(payload);
+}
+
+
 void *send_thread(void *arg)
 {
     send_s *s = arg;
-    struct timespec time;
+    long ns;
+    struct timespec t;
     double wait_d = strtod(s->period, NULL);
 
-    time.tv_sec = (long)wait_d;
-    time.tv_nsec = (long)((wait_d - time.tv_sec)*1e9);
+    t.tv_sec = (long)wait_d;
+    ns = (long)((wait_d - t.tv_sec)*1e9);
+    
+    /* seed random number generator */
+    srand((int)time(NULL));
     
     do {
-        nanosleep(&time, NULL);
+        t.tv_nsec = rand() % ns;
+        nanosleep(&t, NULL);
         doCSMACA(s);
     }
     while(s->repeat);
@@ -247,62 +268,57 @@ void *send_thread(void *arg)
 void doCSMACA(send_s *s)
 {
     ssize_t status;
-    uint32_t checksum;
     struct timespec ts;
-    cts_ack_s ack;
+    cts_ack_s ackcts;
     int K = 0, R;
     
-not_idle:
-    /* wait until idle and waste tons of cycles in the process */
-    while(mediums->isbusy)
-        sched_yield();
-    
-    /* wait ifs time */
-    nanosleep(&ifs, NULL);
-    
-    if(mediums->isbusy)
-        goto not_idle;
-    
-    /* pick random number between 0 and 2^K - 1 */
-    R = rand() % (1 << K);
-    
-    sendRTS(s);
+    while(K != 32) {
+        /* wait until idle and waste tons of cycles in the process */
+        while(mediums->isbusy)
+            sched_yield();
         
-    while(true) {
-        status = slowread(mediumc, &ack, sizeof(ack));
-        /* if timed out */
-        if(status == EINTR) {
-            K++;
-            logevent("Timed out: K is now: %d", K);
-            
-            ts.tv_nsec = R*TIME_SLOT;
-            ts.tv_sec = 0;
-            
-            nanosleep(&ts, NULL);
-            
-            goto not_idle;
-        }
-        else if((ack.FC & ACK_SUBTYPE)) {
-            if(addr_cmp(name_stripped, ack.addr1)) {
-                checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
-                if(checksum == ack.FCS) {
-                    logevent("GOT ACK");
-                    mediumc->size = 0;
-                    send_frame(s);
-                    return;
-                }
-                else {
-                    K++;
-                    logevent("Timed out: K is now: %d", K);
-                    ts.tv_nsec = R*TIME_SLOT;
-                    ts.tv_sec = 0;
-                    nanosleep(&ts, NULL);
-                    goto not_idle;
+        /* wait ifs time */
+        nanosleep(&ifs, NULL);
+        
+        if(mediums->isbusy)
+            continue;
+        
+        /* pick random number between 0 and 2^K - 1 */
+        R = rand() % (1 << K);
+        
+        sendRTS(s);
+        
+        status = slowread(mediumc, &ackcts, sizeof(ackcts));
+        /* if not timed out timed out */
+        if(status != EINTR)
+        if(ackcts.FC & CTS_SUBTYPE) {
+            if(check_ack_cts(&ackcts)) {
+                logevent("GOT CTS");
+                
+                /* wait ifs time */
+                nanosleep(&ifs, NULL);
+                                
+                send_frame(s);
+                status = slowread(mediumc, &ackcts, sizeof(ackcts));
+                if(status != EINTR)
+                if(ackcts.FC & ACK_SUBTYPE) {
+                    if(check_ack_cts(&ackcts)) {
+                        logevent("Got Ack");
+                        return;
+                    }
                 }
             }
+            logevent("Timed out: K is now: %d and R is: %d", K, R);
+            K++;
+            ts.tv_nsec = R*TIME_SLOT;
+            ts.tv_sec = 0;
+            nanosleep(&ts, NULL);
         }
     }
+    logevent("Number of attempts exceeded 32");
+    sleep(rand()%3);
 }
+
 
 void sendRTS(send_s *s)
 {
@@ -322,9 +338,27 @@ void sendRTS(send_s *s)
 
 void send_frame(send_s *s)
 {
-    slowwrite(mediums, s->payload, s->size);
-    logevent("Sent Payload %s", s->payload);
+    uint32_t *checkptr;
+    
+    checkptr = (uint32_t *)&s->payload[s->size];
+    *checkptr = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)s->payload, (int)s->size);
+     
+    slowwrite(mediums, s->payload, s->size + sizeof(uint32_t));
+    logevent("Sent Payload");
 }
+
+bool check_ack_cts(cts_ack_s *data)
+{
+    uint32_t checksum;
+    
+    if(addr_cmp(name_stripped, data->addr1)) {
+        checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)data, sizeof(*data)-sizeof(uint32_t));
+        if(checksum == data->FCS)
+            return true;
+    }
+    return false;
+}
+
 
 void sigUSR1(int sig)
 {

@@ -14,7 +14,7 @@
 #define CRC_POLYNOMIAL 0x11EDC6F41
 
 #define MEDIUM_SIZE 2048
-#define WAIT_TIME 0.5
+#define WAIT_TIME 2.0
 #define TIME_SLOT 10
 #define RTS_SIZE 20
 #define CTS_ACK_SIZE 14
@@ -71,7 +71,6 @@ struct timerarg_s
 
 struct medium_s
 {
-    pthread_mutex_t lock;
     bool isbusy;
     size_t size;
     char buf[MEDIUM_SIZE];

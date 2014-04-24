@@ -372,9 +372,6 @@ void parse_statement(void)
                 *check.result = opt.exp.obj;
             }
             else if(check.write) {
-                printf("adding: ");
-                print_object(&opt.exp.obj);
-                putchar('\n');
                 scope_add(check.scope, opt.exp.obj, check.last->tok->lexeme);
             }
             else {
@@ -1392,7 +1389,7 @@ object_s net_node(void *arg)
     object_s *obj = arg;
     object_s objr;
     arg_s *a;
-    const char *default_ifs = "0.2";
+    const char *default_ifs = "0.02";
     bool gotname = false, gotifs = false;
     enum {
         MIN_NODE_ARGS = 1,

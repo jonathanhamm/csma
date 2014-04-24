@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <sys/stat.h>
 
 #include "parse.h"
 #include "ap.h"
@@ -43,7 +44,8 @@ static void send_message(send_s *send);
 static void *process_request(void *);
 static void kill_child(station_s *s);
 static void kill_childid(char *id);
-static void send_ack(char *addr1);
+static void send_ack_cts(char *addr1, int type);
+static void deliver_message(char *addr1, char *addr2, char *payload, size_t size);
 
 static void sigUSR1(int sig);
 static void sigUSR2(int sig);
@@ -72,7 +74,21 @@ int main(int argc, char *argv[])
     name = "ap";
     name_stripped = "ap";
     name_len = sizeof("ap")-1;
-    logfile = stdout;
+    
+    if(access("out/", F_OK)) {
+        if(errno == ENOENT)
+            mkdir("out", S_IRWXU);
+        else {
+            perror("Directory Access");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
+    logfile = fopen("out/ap", "w");
+    if(!logfile) {
+        perror("Error Creating file for redirection");
+        exit(EXIT_FAILURE);
+    }
     
     sa.sa_handler = sigUSR1;
     sa.sa_flags = SA_RESTART;
@@ -80,15 +96,6 @@ int main(int argc, char *argv[])
     status = sigaction(SIGUSR1, &sa, NULL);
     if(status < 0) {
         perror("Error installing handler for SIGUSR1");
-        exit(EXIT_FAILURE);
-    }
-
-    sa.sa_handler = sigUSR2;
-    sa.sa_flags = SA_RESTART;
-    sigemptyset(&sa.sa_mask);
-    status = sigaction(SIGUSR2, &sa, NULL);
-    if(status < 0) {
-        perror("Error installing handler for SIGUSR2");
         exit(EXIT_FAILURE);
     }
     
@@ -113,7 +120,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     mediums->isbusy = false;
-    pthread_mutex_init(&mediums->lock, NULL);
     
     shm_mediumc = shmget(SHM_KEY_C, sizeof(*mediumc), IPC_CREAT|SHM_R|SHM_W);
     if(shm_mediumc < 0) {
@@ -127,7 +133,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     mediumc->isbusy = false;
-    pthread_mutex_init(&mediumc->lock, NULL);
     
     status = pthread_create(&req_thread, NULL, process_request, NULL);
     if(status) {
@@ -175,6 +180,8 @@ int main(int argc, char *argv[])
     pthread_mutex_unlock(&station_table_lock);
 
     pthread_mutex_destroy(&station_table_lock);
+    
+    fclose(logfile);
     
     exit(EXIT_SUCCESS);
 }
@@ -257,7 +264,6 @@ void send_message(send_s *send)
     if(rec) {
         dlen = strlen(send->dst);
         plen = strlen(send->period);
-
         station = rec->data.ptr;
         write(station->pipe[1], &send->super.func, sizeof(send->super.func));
         write(station->pipe[1], &dlen, sizeof(dlen));
@@ -300,69 +306,91 @@ void *process_request(void *arg)
         cts_ack_s ctack;
     }data;
     char *payload;
-    uint32_t checksum;
+    uint32_t checksum, *checkptr;
     
     while(true) {
-        mediums->size = 0;
         status = slowread(mediums, &data, sizeof(data));
+        mediums->size = 0;
         if(status == EINTR) {
             set_busy(mediums, false);
             logevent("Timed out session");
         }
         else {
+            set_busy(mediums, true);
             if(data.rts.FC & RTS_SUBTYPE) {
                 checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&data.rts, sizeof(data.rts)-sizeof(uint32_t));
                 if(checksum == data.rts.FCS) {
-                    set_busy(mediums, true);
-                    send_ack(data.rts.addr1);
-                    payload = alloc(data.rts.D+1);
-                    payload[data.rts.D] = '\0';
-                    status = slowread(mediums, payload, data.rts.D);
+                    send_ack_cts(data.rts.addr1, CTS_SUBTYPE);
+                    payload = alloc(data.rts.D+sizeof(uint32_t));
+                    status = slowread(mediums, payload, data.rts.D + sizeof(uint32_t));
+                    mediums->size = 0;
                     if(status == EINTR) {
                         logevent("timed out waiting on payload");
                     }
                     else {
-                        logevent("Got payload: %s", payload);
-                        mediums->isbusy = false;
+                        checksum = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)payload, data.rts.D);
+                        checkptr = (uint32_t *)&payload[data.rts.D];
+                        if(checksum == *checkptr) {
+                            deliver_message(data.rts.addr1, data.rts.addr2, payload, data.rts.D);
+                            send_ack_cts(data.rts.addr1, ACK_SUBTYPE);
+                        }
+                        else {
+                            logevent("Checksum Validation FAiled for payload");
+                        }
                     }
+                    free(payload);
                 }
                 else {
-                    logevent("Checksum Validation Failed");
-                    set_busy(mediums, false);
+                    logevent("Checksum Validation Failed for suspected RTS %s", data.rts.addr1);
                 }
             }
             else {
-                set_busy(mediums, false);
+                logevent("Unknown traffic type received");
             }
+            set_busy(mediums, false);
         }
     }
 }
 
-void send_ack(char *addr1)
+void send_ack_cts(char *addr1, int type)
 {
-    cts_ack_s ack;
+    cts_ack_s ack_cts;
     
-    ack.FC = ACK_SUBTYPE;
-    ack.D = 1;
-    memcpy(ack.addr1, addr1, sizeof(ack.addr1));
-    ack.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack, sizeof(ack)-sizeof(uint32_t));
-    slowwrite(mediumc, &ack, sizeof(ack));
+    ack_cts.FC = type;
+    ack_cts.D = 1;
+    memcpy(ack_cts.addr1, addr1, sizeof(ack_cts.addr1));
+    ack_cts.FCS = (uint32_t)crc32(CRC_POLYNOMIAL, (Bytef *)&ack_cts, sizeof(ack_cts)-sizeof(uint32_t));
+    slowwrite(mediumc, &ack_cts, sizeof(ack_cts));
     logevent("Got Valid RTS and Sent ACK");
 }
 
-
-void sigUSR1(int sig)
+void deliver_message(char *addr1, char *addr2, char *payload, size_t size)
 {
-}
-
-void sigUSR2(int sig)
-{
-    puts("SIGUSR2 called");
-}
-
-void sigINT(int sig)
-{
+    sym_record_s *rec;
+    station_s *station;
+    funcs_e func = FNET_RECEIVE;
+    char addbuf[9];
     
+    addbuf[0] = '"';
+    strncpy(&addbuf[1], addr2, 6);
+    addbuf[strlen(addbuf)] = '"';
+    addbuf[strlen(addbuf)] = '\0';
+    
+    pthread_mutex_lock(&station_table_lock);
+    rec = sym_lookup(&station_table, addbuf);
+    if(rec) {
+        station = rec->data.ptr;
+        write(station->pipe[1], &func, sizeof(func));
+        write(station->pipe[1], &size, sizeof(size));
+        write(station->pipe[1], payload, size);
+        write(station->pipe[1], addr1, 6);
+        kill(station->pid, SIGUSR1);
+        logevent("Delivered payload to %.6s", addr2);
+    }
+    else
+        logevent("Unknown Station: %.6s", addr2);
+    pthread_mutex_unlock(&station_table_lock);
+
 }
 
-
+void sigUSR1(int sig){}

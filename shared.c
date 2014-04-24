@@ -107,9 +107,7 @@ size_t read_shm(medium_s *medium, char *data, size_t start, size_t size)
 
 void set_busy(medium_s *medium, bool isbusy)
 {
-    pthread_mutex_lock(&medium->lock);
     medium->isbusy = isbusy;
-    pthread_mutex_unlock(&medium->lock);
 }
 
 void sigALARM(int sig)
@@ -120,18 +118,15 @@ void sigALARM(int sig)
 void logevent(char *fs, ...)
 {
     va_list args;
-    size_t i, diff;
     time_t t;
     struct tm tm_time;
     char timestamp[16];
+    
     static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     
     pthread_mutex_lock(&lock);
     
-    fprintf(logfile, "%.6s", name_stripped);
-    diff = 6 - (name_len - 2);
-    //for(i = 0; i < diff; i++)
-   //     fputc('.', logfile);
+    fprintf(logfile, "%.6s:", name_stripped);
     fputc('\t', logfile);
     
     time(&t);
@@ -175,16 +170,10 @@ void slowwrite(medium_s *medium, void *buf, size_t size)
 {
     size_t i;
     
-    pthread_mutex_lock(&medium->lock);
     medium->size = 0;
-    pthread_mutex_unlock(&medium->lock);
-
     for(i = 0; i < size; i++) {
-        pthread_mutex_lock(&medium->lock);
-
         write_shm(medium, buf+i, sizeof(char));
         medium->size++;
-        pthread_mutex_unlock(&medium->lock);
         sched_yield();
     }
 }
