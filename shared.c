@@ -159,7 +159,6 @@ ssize_t slowread(medium_s *medium, void *buf, size_t size)
             pthread_cancel(timer_thread);
             return EINTR;
         }
-        sched_yield();
     }
     pthread_cancel(timer_thread);
     return 0;
@@ -174,7 +173,6 @@ void slowwrite(medium_s *medium, void *buf, size_t size)
     for(i = 0; i < size; i++) {
         write_shm(medium, buf+i, sizeof(char));
         medium->size++;
-        sched_yield();
     }
 }
 

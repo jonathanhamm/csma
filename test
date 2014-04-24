@@ -2,13 +2,31 @@
 conspiracy = {
     a = node("a"), b = node("b"),
     c = node("c"), d = node("d"),
-    e = node("e"), f = node("f")
+    e = node("e"), f = node("f"),
+    g = node("g"), h = node("h")
 }
 
 victim = node("derp")
 bob = node("bob", ifs = 0.2)
 
-#Commands
-conspiracy.send(victim, "LOLOLOLOLOLOLOLOLOLOLOLOLOLOLOLOL", period=2.5, repeat = true)
+#Make Every Member of 'conspiracy' send to 'victim'
+conspiracy.send(victim, "LOLOLOLOLOLOLOLOLOLOLOLOLOLOLOLOL", period=0.5, repeat = true)
+
+#Make victim send to bob
 victim.send(bob, "HELP", period=1.1, repeat = true)
+
+#Make bob send to 'a' in 'conspiracy'
 bob.send(conspiracy.a, "I want money", period=1.5, repeat = true)
+
+
+#Add some more nodes
+pair1 = { node("n1", ifs = 0.01), node("n2", ifs = 0.01) }
+
+pair2 = { node("n3"), node("n4") }
+
+#Make all nodes in pair1 send to all nodes in pair2 3 times
+pair1.send(pair2, "greetings", period=2, repeat = false)
+pair1.send(pair2, "greetings", period=2, repeat = false)
+pair1.send(pair2, "greetings", period=2, repeat = false)
+
+pair2[1].send(pair1[0], "grettings yourself", period=3, repeat = false)

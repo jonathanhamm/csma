@@ -350,7 +350,6 @@ void parse_statement(void)
                     if(!opt.exp.obj.arglist->tail)
                         opt.exp.obj.arglist->tail = called;
                     opt.exp.obj.arglist->size++;
-                    puts("arg inserted");
                 }
                 if(!function_check(check, &opt.exp.obj, &res)) {
                     error(

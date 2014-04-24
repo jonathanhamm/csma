@@ -15,7 +15,7 @@
 
 #define MEDIUM_SIZE 2048
 #define WAIT_TIME 2.0
-#define TIME_SLOT 10
+#define TIME_SLOT 100
 #define RTS_SIZE 1000
 #define CTS_ACK_SIZE 14
 #define RTS_SUBTYPE 0x0b00

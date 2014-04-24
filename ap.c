@@ -309,7 +309,6 @@ void *process_request(void *arg)
     uint32_t checksum, *checkptr;
     
     while(true) {
-        mediums->size = 0;
         status = slowread(mediums, &data, sizeof(data));
         mediums->size = 0;
         if(status == EINTR) {
@@ -324,6 +323,7 @@ void *process_request(void *arg)
                     send_ack_cts(data.rts.addr1, CTS_SUBTYPE);
                     payload = alloc(data.rts.D+sizeof(uint32_t));
                     status = slowread(mediums, payload, data.rts.D + sizeof(uint32_t));
+                    mediums->size = 0;
                     if(status == EINTR) {
                         logevent("timed out waiting on payload");
                     }

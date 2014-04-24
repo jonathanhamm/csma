@@ -320,6 +320,7 @@ void doCSMACA(send_s *s)
                 if(status != EINTR)
                 if(ackcts.FC & ACK_SUBTYPE) {
                     if(check_ack_cts(&ackcts)) {
+                        mediumc->size = 0;
                         logevent("Got Ack");
                         return;
                     }
