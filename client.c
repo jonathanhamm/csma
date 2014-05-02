@@ -303,7 +303,7 @@ void doCSMACA(send_s *s)
         
         /* Send Request to send */
         sendRTS(s);
-        
+                
         status = slowread(mediumc, &ackcts, sizeof(ackcts));
         /* if not timed out timed out */
         if(status != EINTR)

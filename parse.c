@@ -1924,7 +1924,7 @@ void buf_addstr(buf_s **b, char *str, size_t size)
     size_t old = bb->size;
     
     bb->size += size;
-    if(bb->size >= bb->size) {
+    if(bb->size >= bb->bsize) {
         do {
             bb->bsize *= 2;
         }
